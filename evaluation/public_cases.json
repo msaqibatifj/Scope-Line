@@ -1,0 +1,15 @@
+[
+  {
+    "name": "Scaffold contract example",
+    "request": {
+      "task": "Replace this with a task in your domain",
+      "external_context": [],
+      "arena_config": {
+        "max_steps": 6,
+        "fault": "none"
+      }
+    },
+    "expected_status": "failed",
+    "expected_stop_reason": "not_implemented"
+  }
+]
