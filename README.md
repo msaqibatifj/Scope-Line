@@ -1,8 +1,39 @@
-# Agent Arena student starter
+# Sandbox File Janitor
 
-This is runnable infrastructure, NOT a completed assignment. `/arena/run` and `/chat`
-return `failed` with `stop_reason: not_implemented` until you implement app/agent.py.
-No model API is called by this starter. It includes no instructor keys or solution.
+Sandbox File Janitor organizes a small application-owned fixture collection. It can
+list files, identify exact content duplicates, rename one selected file, and move a
+bounded set of selected files into an existing sandbox folder. It does not delete
+files, access user or host folders, run commands, execute arbitrary code, or use
+network access.
+
+## Completion rules
+
+- Inspection is complete only when the response is backed by a successful sandbox observation.
+- Rename and move tasks are complete only when the resulting path is verified and content is preserved.
+- Ambiguous file requests require clarification before a mutation.
+- Unsupported requests, including deletion, are blocked and may suggest moving files into `Review`.
+
+## Design canvas
+
+| Element | Decision |
+| --- | --- |
+| Goal | Organize a small fixture collection using safe inspection, rename, and move operations. |
+| Completion | Verified inspection or verified mutation with preserved content. |
+| Boundary | A temporary application-owned sandbox only; no arbitrary paths. |
+| Observations | Request, bounded history, inventory, tool results, state, and untrusted notes. |
+| Actions | List files, find exact duplicates, rename one file, move selected files. |
+| State | Goal, step count, observations, attempts, operation IDs, budgets, and stop reason. |
+| Autonomy | Only sandbox moves and renames; deletion and host access are blocked. |
+| Risks | Wrong selection, collisions, traversal, repeat writes, injection, and unbounded execution. |
+| Evaluation | Correctness, clarification, isolation, validation, recovery, and bounded termination. |
+
+## Sandbox behavior
+
+`data/sample_data.json` defines 16 safe fixtures, including three exact-duplicate
+pairs, similar names with different content, filename collisions, spaces, a Unicode
+filename, and instruction-like text for injection testing. Every sandbox starts from
+these fixtures. File IDs remain stable while paths can change after a verified rename
+or move. Arena runs will use fresh sandboxes; chat persistence comes later.
 
 ## Start locally on Windows
 Use Python 3.12 or newer. Extract this folder first, then open a terminal inside it.
