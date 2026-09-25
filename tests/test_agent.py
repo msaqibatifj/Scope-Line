@@ -33,6 +33,14 @@ class ScopeLineTests(unittest.TestCase):
             self.assertEqual(client.post('/arena/run', json={'task': '  '}).status_code, 422)
             self.assertEqual(client.post('/arena/run', json={'task': 'Test', 'arena_config': {'max_steps': 99}}).status_code, 422)
 
+    def test_interface_has_context_tab(self):
+        # The browser exposes a dedicated context panel backed by untrusted input.
+        with TestClient(app) as client:
+            page = client.get('/').text
+            self.assertIn('id="context-tab"', page)
+            self.assertIn('role="tabpanel"', page)
+            self.assertIn('id="external"', page)
+
     def test_memory_isolation_and_bound(self):
         # Chat history stays separate and bounded.
         memory = Memory()

@@ -1,5 +1,57 @@
-<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ScopeLine</title><link rel="stylesheet" href="/static/style.css">
-<header><p class="eyebrow">FREELANCE OPERATIONS</p><h1>ScopeLine</h1><p>Catch scope drift before extra work becomes invisible work.</p><a href="/docs">API documentation</a></header>
-<main><section><label for="model">Decision model</label><select id="model"></select><button id="reset" type="button">New review</button><div id="messages" aria-live="polite"></div><form id="chat"><label for="task">Project or client request</label><textarea id="task" required maxlength="10000" placeholder="Analyze request-001 for project-001 and draft a change request."></textarea><button id="send">Review scope</button></form></section>
-<aside><h2>Evidence</h2><label for="external">Client note (untrusted)</label><textarea id="external" maxlength="10000" placeholder="Paste optional context here"></textarea><p id="memory">0 messages in this review</p><pre id="observations">No observations yet.</pre><h2>Current run</h2><p id="status" role="status">Idle</p><pre id="trace">No tool calls yet.</pre></aside></main>
-<footer>Drafts stay private. ScopeLine never contacts clients, changes agreements, invoices, or charges anyone.</footer><script src="/static/app.js"></script></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>ScopeLine</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header>
+    <p class="eyebrow">FREELANCE OPERATIONS</p>
+    <h1>ScopeLine</h1>
+    <p>Catch scope drift before extra work becomes invisible work.</p>
+    <a href="/docs">API documentation</a>
+  </header>
+  <main>
+    <section class="workspace">
+      <div class="workspace-bar">
+        <div>
+          <label for="model">Decision model</label>
+          <select id="model"></select>
+        </div>
+        <button id="reset" type="button">New review</button>
+      </div>
+      <div class="tabs" role="tablist" aria-label="Review workspace">
+        <button id="chat-tab" class="tab active" type="button" role="tab" aria-selected="true" aria-controls="chat-panel">Chat</button>
+        <button id="context-tab" class="tab" type="button" role="tab" aria-selected="false" aria-controls="context-panel">Context</button>
+      </div>
+      <div id="chat-panel" role="tabpanel" aria-labelledby="chat-tab">
+        <div id="messages" aria-live="polite"></div>
+        <form id="chat">
+          <label for="task">Project or client request</label>
+          <textarea id="task" required maxlength="10000" placeholder="Analyze request-001 for project-001 and draft a change request."></textarea>
+          <button id="send">Review scope</button>
+        </form>
+      </div>
+      <div id="context-panel" role="tabpanel" aria-labelledby="context-tab" hidden>
+        <div class="context-heading">
+          <label for="external">Project context</label>
+          <span id="context-count">0 / 10,000</span>
+        </div>
+        <textarea id="external" maxlength="10000" placeholder="Paste the agreement, client message, brief, or project notes."></textarea>
+      </div>
+    </section>
+    <aside>
+      <h2>Evidence</h2>
+      <p id="memory">0 messages in this review</p>
+      <pre id="observations">No observations yet.</pre>
+      <h2>Current run</h2>
+      <p id="status" role="status">Idle</p>
+      <pre id="trace">No tool calls yet.</pre>
+    </aside>
+  </main>
+  <footer>Drafts stay private. ScopeLine never contacts clients, changes agreements, invoices, or charges anyone.</footer>
+  <script src="/static/app.js"></script>
+</body>
+</html>

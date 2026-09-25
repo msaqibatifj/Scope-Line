@@ -79,6 +79,9 @@ tests/
 
 Arena runs receive a fresh workspace. Chat sessions retain their private workspace
 and up to six recent turns until reset, eviction, process restart, or TTL expiry.
+The browser workspace has separate Chat and Context tabs. Text pasted into Context
+stays attached to the current review and is always submitted as untrusted external
+data; starting a new review clears it.
 
 ## Run locally
 
