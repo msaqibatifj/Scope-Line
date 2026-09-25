@@ -1,153 +1,202 @@
-# Sandbox File Janitor
+# ScopeLine
 
-Sandbox File Janitor organizes a small application-owned fixture collection. It can
-list files, identify exact content duplicates, rename one selected file, and move a
-bounded set of selected files into an existing sandbox folder. It does not delete
-files, access user or host folders, run commands, execute arbitrary code, or use
-network access.
+ScopeLine is a privacy-aware Freelance Scope Drift Monitor. It compares a new
+client request with the freelancer's recorded agreement, identifies evidence of
+scope drift, asks for missing details, and can prepare a private change-request
+draft. It never contacts a client or changes a commercial agreement.
 
 ## Completion rules
 
-- Inspection is complete only when the response is backed by a successful sandbox observation.
-- Rename and move tasks are complete only when the resulting path is verified and content is preserved.
-- Ambiguous file requests require clarification before a mutation.
-- Unsupported requests, including deletion, are blocked and may suggest moving files into `Review`.
+- An inspection is complete only after the agreement tool returns project evidence.
+- An analysis is complete only after a request is classified as `within_scope`,
+  `scope_drift`, or `ambiguous` with supporting findings.
+- A draft is complete only when it refers to a stored `scope_drift` analysis.
+- Missing project or request details produce `needs_clarification`.
+- Sending, invoicing, charging, signing, or altering an agreement is blocked.
 
-## Design canvas
+## Agent design canvas
 
 | Element | Decision |
 | --- | --- |
-| Goal | Organize a small fixture collection using safe inspection, rename, and move operations. |
-| Completion | Verified inspection or verified mutation with preserved content. |
-| Boundary | A temporary application-owned sandbox only; no arbitrary paths. |
-| Observations | Request, bounded history, inventory, tool results, state, and untrusted notes. |
-| Actions | List files, find exact duplicates, rename one file, move selected files. |
-| State | Goal, step count, observations, attempts, operation IDs, budgets, and stop reason. |
-| Autonomy | Only sandbox moves and renames; deletion and host access are blocked. |
-| Risks | Wrong selection, collisions, traversal, repeat writes, injection, and unbounded execution. |
-| Evaluation | Correctness, clarification, isolation, validation, recovery, and bounded termination. |
+| Goal | Help freelancers recognize additional unpaid work before accepting it. |
+| Completion | Return agreement-backed classification or a private reviewable draft. |
+| Boundary | Application-owned sample agreements, requests, analyses, and drafts only. |
+| Observations | User goal, bounded history, runtime state, untrusted notes, and validated tool results. |
+| Actions | List projects, inspect agreement, analyze scope drift, draft change request. |
+| State | Step count, observations, retries, analyses, drafts, operation IDs, and stop reason. |
+| Autonomy | Read, classify, and draft; never communicate, contract, invoice, or charge. |
+| Risks | Wrong project, vague request, prompt injection, invented terms, duplicate writes, and unbounded execution. |
+| Evaluation | Evidence use, action choice, clarification, safety, contract validity, recovery, and termination. |
 
-## Sandbox behavior
+## How the loop works
 
-`data/sample_data.json` defines 16 safe fixtures, including three exact-duplicate
-pairs, similar names with different content, filename collisions, spaces, a Unicode
-filename, and instruction-like text for injection testing. Every sandbox starts from
-these fixtures. File IDs remain stable while paths can change after a verified rename
-or move. Arena runs will use fresh sandboxes; chat persistence comes later.
+1. Build separate prompt layers for policy, user goal, history, state, untrusted
+   context, and tool observations.
+2. Ask the selected provider for exactly one typed decision.
+3. Validate the decision and domain-specific arguments before execution.
+4. Execute at most one tool, record its result, and feed that observation back.
+5. Finish, ask, block, fail safely, or stop when the six-step budget is reached.
 
-## Start locally on Windows
-Use Python 3.12 or newer. Extract this folder first, then open a terminal inside it.
+One repair is allowed for an invalid decision. Tool timeouts and malformed outputs
+are retried within `MAX_TOOL_RETRIES`. Arena fault injection affects only the first
+matching operation.
 
-```powershell
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-Copy-Item .env.example .env
-.\.venv\Scripts\python.exe run.py
+## Tools
+
+| Tool | Purpose | Important validation |
+| --- | --- | --- |
+| `list_projects` | Show bounded project summaries. | Maximum 100 records. |
+| `inspect_agreement` | Return deliverables, exclusions, and recorded requests. | Requires a known project ID. |
+| `analyze_scope_drift` | Compare request text with agreement evidence. | Requires a project plus request ID or text; stored request must belong to project. |
+| `draft_change_request` | Create a private change-request draft. | Requires a stored drift analysis; operation IDs are replay-safe. |
+
+The deterministic classifier matches explicit agreement signals and exhausted
+revision allowances. A request with no defensible match is `ambiguous`, not guessed.
+Client text and browser-supplied notes remain untrusted data even when they contain
+instruction-like language.
+
+## Project structure
+
+```text
+app/
+  agent.py       bounded loop, local decisions, OpenRouter adapter, fault handling
+  models.py      HTTP, decision, tool-input, and tool-output contracts
+  tools.py       agreement inspection, analysis, and drafting tools
+  sandbox.py     isolated per-run/per-chat project workspace
+  prompts.py     trust-separated dynamic context
+  providers.py   model allowlist, OpenRouter preflight, and cost tracking
+  api.py         Arena and chat endpoints
+  static/        ScopeLine browser interface
+data/
+  sample_data.json
+evaluation/
+  public_cases.json
+  run_public_tests.py
+tests/
+  test_agent.py
+  test_tools.py
 ```
 
-Open http://127.0.0.1:8000/ for the interface or /docs for API requests.
-Stop with Ctrl+C in the server terminal. If port 8000 is occupied, stop your old
-server or change PORT in .env to 8001 and open that port. Do not run two servers
-on the same port. On macOS/Linux use python3 and .venv/bin/python equivalents.
+Arena runs receive a fresh workspace. Chat sessions retain their private workspace
+and up to six recent turns until reset, eviction, process restart, or TTL expiry.
 
-## What to implement
-1. Choose a narrow domain and complete the design canvas below.
-2. Replace data/sample_data.json with safe sandbox data.
-3. Define typed decisions and state in models.py; implement at least three tools.
-4. Write prompts.py and model integration. LangChain is allowed for models,
-   tools and messages; add your chosen provider package to requirements.txt.
-5. Implement the bounded loop, semantic validation, autonomy limits and recovery
-   in agent.py. Read request.arena_config.max_steps; count repair attempts too.
-6. Implement controlled fault injection at the model/tool boundary. The wrapper
-   parses faults but DOES NOT simulate them for you.
-7. Consume the history argument in your model messages to resolve clarification.
-   Add configured model identifiers to api.py /models and validate selection.
-8. Add rate/concurrency and spend controls before enabling paid calls publicly.
-9. Replace the starter manifest and examples, test, deploy and submit.
+## Run locally
 
-## File map
-- main.py: FastAPI composition and static files.
-- api.py: routes, selected-model validation, session handoff.
-- config.py: environment configuration; limits require enforcement in your loop.
-- models.py: public contracts; add domain-specific state/decisions.
-- agent.py, prompts.py, tools.py: student TODOs.
-- memory.py: LangChain HumanMessage/AIMessage storage (six recent turns,
-  24,000-character ceiling, 100 sessions). In-memory only; one worker. New chat
-  clears server history; browser reload starts a new session. Not long-term memory.
-- arena.py: timeout wrapper, response bound, safe event logging.
-- static/: basic chat, selector, external note, status and observations.
+Use Python 3.12 or newer.
 
-## Arena contract
-GET /health; GET /arena/manifest; POST /arena/run. POST /chat is for the UI.
-Arena runs are independent: request_id is correlation only, not a memory key.
-Chat session_id links turns; each student chooses and documents sandbox persistence.
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
+cp .env.example .env
+.venv/bin/python run.py
+```
 
-The minimal request printed in the assignment works:
+Open `http://127.0.0.1:8000/` for the interface or
+`http://127.0.0.1:8000/docs` for API documentation.
+
+## OpenRouter setup
+
+The free `local-scripted` provider is always available for repeatable tests. To
+enable the two OpenRouter comparison models, place the following in `.env`:
+
+```env
+MODEL_PROVIDER=openrouter
+MODEL_NAME=local-scripted
+ALLOWED_MODELS=local-scripted,nvidia/nemotron-3-ultra-550b-a55b:free,cohere/north-mini-code:free
+ENABLE_LIVE_MODELS=true
+OPENROUTER_API_KEY=sk-or-v1-your-key-here
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+OPENROUTER_SITE_URL=
+OPENROUTER_APP_NAME=ScopeLine
+MAX_LIVE_REQUESTS_PER_MINUTE=10
+SPEND_LIMIT_USD=0
+```
+
+`nvidia/nemotron-3-ultra-550b-a55b:free` is the reasoning-quality candidate.
+`cohere/north-mini-code:free` is the fast comparison model with about 3B active
+parameters. These free endpoints support tool calls but not `response_format`, so
+the adapter requires one `submit_agent_decision` function call and then validates
+its arguments with Pydantic before execution. No API key is returned by `/models`
+or included in traces. OpenRouter's reported request cost is used when present.
+The zero-dollar spend guard permits only model IDs ending in `:free`; a paid model
+still requires an explicit positive budget before its first request.
+
+The public default remains `local-scripted` because it passed all ten repeatable
+evaluation cases, while the two free OpenRouter endpoints were inconsistent and
+rate limited during the recorded comparison. Live choices remain available from
+the UI for explicit testing. Each process admits at most
+`MAX_LIVE_REQUESTS_PER_MINUTE` live runs and accumulates provider-reported cost
+against `SPEND_LIMIT_USD`; both counters reset when the process restarts.
+
+## Model selection evidence
+
+The same ten cases were run against both live candidates. Nemotron scored 0/10
+task successes at 23.23 seconds average latency; North scored 1/10 at 19.85
+seconds. Both reported $0 cost, but contract-tool failures, timeouts, and subsequent
+HTTP 429 responses made neither suitable as the evaluation default. Nemotron's 1M
+context and stronger reasoning profile suit nuanced agreement review; North's 256K
+context and smaller active footprint favor latency. ScopeLine needs far less context
+than either limit, so observed reliability outranks context size. The post-fix
+Nemotron smoke run completed correctly in 12.49 seconds, making it the preferred
+experimental live choice. Full evidence is in
+`evaluation/model_comparison.md` and `evaluation/model_comparison_results.json`.
+
+Free endpoints are rate limited and their availability can change. Do not use the
+NVIDIA free endpoint for confidential or personal client data; it is configured
+here only for synthetic assignment fixtures. A production launch needs models and
+provider policies approved for private commercial documents.
+
+## API
+
+- `GET /health`
+- `GET /models`
+- `GET /arena/manifest`
+- `POST /arena/run`
+- `POST /chat`
+- `DELETE /chat/{session_id}`
+
+Minimal Arena request:
+
 ```json
-{"task":"Your domain task","external_context":[],"arena_config":{"max_steps":6,"fault":"none"}}
+{
+  "task": "Analyze request-001 for project-001 and draft a change request",
+  "external_context": [],
+  "arena_config": {"max_steps": 6, "fault": "none"}
+}
 ```
-The equivalent expanded fault is {"type":"none"}. Types: none, tool_timeout,
-malformed_tool_output, invalid_agent_decision. Trigger the first matching operation
-once per run. Supply request_id if desired; omitted IDs are generated.
-External entries are {"source":"note","content":"text","trust":"untrusted"}.
-Preserve the status/steps/stop_reason/tool_calls/errors response fields. Tool names
-are domain-specific. Optional events and metrics support the interface; report
-unknown token usage/cost as null, never as a fabricated zero.
-`blocked` and `approval_required` are accepted; use and document them consistently.
 
-## Test without spending API credits
-```powershell
-.\.venv\Scripts\python.exe -m unittest discover -s tests -v
+Supported faults are `none`, `tool_timeout`, `malformed_tool_output`, and
+`invalid_agent_decision`. Responses retain the assignment's machine-readable
+status, step count, stop reason, tool trace, errors, events, and metrics.
+
+## Verification
+
+```bash
+.venv/bin/python -m unittest discover -s tests -v
+.venv/bin/python evaluation/run_public_tests.py --url http://127.0.0.1:8000
 ```
-The bundled tests check infrastructure only. They are NOT the hidden evaluator.
-Add your own scripted-model tests. Cover ambiguity, injection, invalid decisions,
-tool failure, budget termination, autonomy, and multi-turn clarification.
 
-With the server running:
-```powershell
-.\.venv\Scripts\python.exe evaluation/run_public_tests.py --url http://127.0.0.1:8000
-```
-This initial one-case check expects the not_implemented placeholder. Replace it
-with actual domain cases and expected outcomes. After model integration, this HTTP
-runner can cost money. Run deliberately; do not repeatedly call paid models on CI.
+The test suite covers the four tools, three classifications, clarification,
+multi-turn continuity, autonomy boundaries, untrusted input, replay safety,
+session isolation, step exhaustion, invalid decisions, dependency faults, and
+OpenRouter request construction without making a paid call.
 
-## Render deployment
-Create a private GitHub repository from this extracted folder (not the ZIP file).
-Give the instructor access as announced in Google Classroom. In Render create a
-Web Service, connect your repository, and choose the Python runtime.
-- Build: pip install -r requirements.txt
-- Start: uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1
-- Health check: /health
-Select the free instance if available; confirm the displayed plan before deploying.
-render.yaml is an optional Blueprint alternative. Dockerfile is another option.
-Add your chosen model name and provider keys using Render environment settings.
-Never commit .env. No keys are needed to deploy the incomplete scaffold.
-Free services may restart or sleep; in-memory history is lost after restart.
-Verify both the browser interface and a POST through /docs on the public URL.
-A successful health response proves availability, not assignment completion.
-Deployment has not been performed for you by this ZIP.
+## Deployment notes
 
-References: https://render.com/docs/deploy-fastapi
-and https://docs.langchain.com/oss/python/langchain/messages
+Use one worker because chat memory and project workspaces are process-local.
+For Render, use build command `pip install -r requirements.txt` and start command
+`uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1`. Configure the OpenRouter
+key only in host secrets. Free-service restarts erase in-memory chats and drafts.
 
-## Complete your project documentation
-- Problem and measurable completion condition
-- Design canvas: goal, completion, system boundary, observations, actions,
-  state, autonomy boundary, primary risks, evaluation criteria
-- Architecture diagram and file map
-- Model comparison: two models/tiers on approximately ten common inputs;
-  success, contract validity, action choice, latency, tokens and estimated cost
-- Prompt/context design, session isolation, reset and memory limitations
-- Typed schema and semantic validation rules
-- Loop, retry/time/token/step limits and stop conditions
-- Tool/fault handling and test evidence
-- Setup, deployment, limitations and submission links
+## Known limitations
 
-## Google Classroom submission
-Rename the outer project folder to your lowercase roll number, e.g. i221234.
-Prepare i221234.zip plus i221234_submission.pdf. Include SUBMISSION.md in the ZIP;
-put the same working interface URL, repository URL, endpoints and final source
-commit in the PDF. Submission metadata may be prepared after the source commit;
-identify the source version being evaluated clearly. Exclude .env, .venv, .git,
-node_modules, caches and secrets. Follow Section 19 of the assignment and click
-Turn in after attaching both files. Pushes alone are not official submissions.
+- Agreement matching is evidence-oriented but keyword-based in the local baseline.
+- ScopeLine is an operational aid, not legal advice or a substitute for contract review.
+- Drafts are not sent and estimates are not finalized automatically.
+- The included records are synthetic; production use needs authenticated tenant
+  storage, encryption, durable audit/rate/spend counters, and explicit client consent.
+
+OpenRouter references: https://openrouter.ai/docs/quickstart,
+https://openrouter.ai/docs/guides/features/structured-outputs,
+https://openrouter.ai/nvidia/nemotron-3-ultra-550b-a55b:free, and
+https://openrouter.ai/cohere/north-mini-code:free.

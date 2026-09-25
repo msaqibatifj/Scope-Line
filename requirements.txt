@@ -4,4 +4,4 @@ pydantic>=2.12,<3
 pydantic-settings>=2.10,<3
 langchain-core>=1,<2
 httpx>=0.28,<1
-# Add your chosen model integration package and pin tested versions before submission.
+# OpenRouter uses its OpenAI-compatible HTTPS endpoint through httpx.

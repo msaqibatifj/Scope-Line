@@ -1,70 +1,100 @@
 import unittest
 
-from app.models import FindDuplicatesInput, ListFilesInput, MoveFilesInput, RenameFileInput
-from app.sandbox import Sandbox
-from app.tools import FileJanitorTools
+from app.models import AnalyzeScopeDriftInput, DraftChangeRequestInput, InspectAgreementInput, ListProjectsInput
+from app.sandbox import Sandbox, SandboxError
+from app.tools import ScopeDriftTools
 
 
-class FileJanitorToolTests(unittest.TestCase):
+class ScopeDriftToolTests(unittest.TestCase):
     def setUp(self):
+        # Each test gets independent sample agreements, analyses, and drafts.
         self.sandbox = Sandbox.create()
-        self.tools = FileJanitorTools(self.sandbox)
+        self.tools = ScopeDriftTools(self.sandbox)
 
     def tearDown(self):
         self.sandbox.cleanup()
 
-    def test_list_files_matches_fixture_inventory(self):
-        result = self.tools.list_files(ListFilesInput())
+    def test_list_projects_matches_fixture(self):
+        result = self.tools.list_projects(ListProjectsInput())
         self.assertTrue(result.ok)
-        self.assertEqual(len(result.files), 16)
-        self.assertEqual(result.files[0].file_id, 'file-001')
+        self.assertEqual(len(result.projects), 3)
+        self.assertEqual(result.projects[0].project_id, 'project-001')
 
-    def test_find_duplicates_uses_content_hashes(self):
-        result = self.tools.find_duplicates(FindDuplicatesInput())
-        groups = {frozenset(group.file_ids) for group in result.duplicate_groups}
-        self.assertIn(frozenset({'file-001', 'file-002'}), groups)
-        self.assertIn(frozenset({'file-007', 'file-008'}), groups)
-        self.assertNotIn(frozenset({'file-003', 'file-004'}), groups)
-
-    def test_rename_preserves_content_and_replays_safely(self):
-        original = self.sandbox.file_path('file-010').read_bytes()
-        args = RenameFileInput(file_id='file-010', new_name='agenda.md', operation_id='rename-agenda')
-        result = self.tools.rename_file(args)
+    def test_inspect_agreement_returns_scope_and_requests(self):
+        result = self.tools.inspect_agreement(InspectAgreementInput(project_id='project-001'))
         self.assertTrue(result.ok)
-        self.assertEqual(result.files[0].path, 'Notes/agenda.md')
-        self.assertEqual(self.sandbox.file_path('file-010').read_bytes(), original)
-        self.assertEqual(self.tools.rename_file(args), result)
-        conflict = self.tools.rename_file(RenameFileInput(file_id='file-010', new_name='other.md', operation_id='rename-agenda'))
-        self.assertEqual(conflict.error.code, 'operation_id_conflict')
+        self.assertIn('E-commerce, checkout, and inventory systems', result.projects[0].exclusions)
+        self.assertEqual([item.request_id for item in result.requests], ['request-001', 'request-002', 'request-003'])
 
-    def test_rename_rejects_collisions_and_invalid_names(self):
-        collision = self.tools.rename_file(RenameFileInput(file_id='file-003', new_name='budget-2026.txt', operation_id='collision'))
-        self.assertEqual(collision.error.code, 'destination_collision')
-        invalid = self.tools.rename_file(RenameFileInput(file_id='file-003', new_name='../escape.txt', operation_id='escape'))
-        self.assertEqual(invalid.error.code, 'invalid_filename')
-
-    def test_move_validates_all_destinations_before_mutation(self):
-        result = self.tools.move_files(MoveFilesInput(file_ids=['file-001', 'file-013'], destination_dir='Archive', operation_id='move-inbox'))
+    def test_analyze_explicit_exclusion_as_scope_drift(self):
+        result = self.tools.analyze_scope_drift(AnalyzeScopeDriftInput(project_id='project-001', request_id='request-001'))
         self.assertTrue(result.ok)
-        self.assertEqual({record.path for record in result.files}, {'Archive/budget-2026.txt', 'Archive/recipe.csv'})
-        collision = self.tools.move_files(MoveFilesInput(file_ids=['file-005'], destination_dir='Archive', operation_id='move-report'))
-        self.assertEqual(collision.error.code, 'destination_collision')
-        self.assertEqual(self.sandbox.record('file-005').path, 'Inbox/report.txt')
+        self.assertEqual(result.analysis.classification, 'scope_drift')
+        self.assertTrue(any(item.category == 'explicit_exclusion' for item in result.analysis.findings))
 
-    def test_move_rejects_traversal_unknown_ids_and_duplicate_batch_ids(self):
-        traversal = self.tools.move_files(MoveFilesInput(file_ids=['file-001'], destination_dir='../outside', operation_id='traversal'))
-        self.assertEqual(traversal.error.code, 'path_outside_sandbox')
-        absolute = self.tools.move_files(MoveFilesInput(file_ids=['file-001'], destination_dir='/tmp', operation_id='absolute'))
-        self.assertEqual(absolute.error.code, 'path_outside_sandbox')
-        unknown = self.tools.move_files(MoveFilesInput(file_ids=['not-a-file'], destination_dir='Archive', operation_id='unknown'))
-        self.assertEqual(unknown.error.code, 'unknown_file_id')
-        duplicated = self.tools.move_files(MoveFilesInput(file_ids=['file-001', 'file-001'], destination_dir='Archive', operation_id='dupe'))
-        self.assertEqual(duplicated.error.code, 'duplicate_file_id')
+    def test_analyze_matching_deliverable_as_within_scope(self):
+        result = self.tools.analyze_scope_drift(AnalyzeScopeDriftInput(project_id='project-001', request_id='request-002'))
+        self.assertTrue(result.ok)
+        self.assertEqual(result.analysis.classification, 'within_scope')
+        self.assertTrue(any(item.evidence == 'home page' for item in result.analysis.findings))
+
+    def test_analyze_vague_request_as_ambiguous(self):
+        result = self.tools.analyze_scope_drift(AnalyzeScopeDriftInput(project_id='project-001', request_id='request-003'))
+        self.assertTrue(result.ok)
+        self.assertEqual(result.analysis.classification, 'ambiguous')
+        self.assertEqual(result.analysis.confidence, 'low')
+
+    def test_revision_limit_can_create_scope_drift(self):
+        result = self.tools.analyze_scope_drift(AnalyzeScopeDriftInput(
+            project_id='project-003',
+            request_text='Please make another color correction revision.',
+        ))
+        self.assertEqual(result.analysis.classification, 'scope_drift')
+        self.assertTrue(any(item.category == 'revision_limit' for item in result.analysis.findings))
+
+    def test_request_must_belong_to_project(self):
+        result = self.tools.analyze_scope_drift(AnalyzeScopeDriftInput(project_id='project-002', request_id='request-001'))
+        self.assertFalse(result.ok)
+        self.assertEqual(result.error.code, 'request_project_mismatch')
+
+    def test_draft_requires_confirmed_drift_and_replays_safely(self):
+        analysis = self.tools.analyze_scope_drift(AnalyzeScopeDriftInput(project_id='project-001', request_id='request-001')).analysis
+        args = DraftChangeRequestInput(project_id='project-001', analysis_id=analysis.analysis_id, operation_id='draft-checkout')
+        result = self.tools.draft_change_request(args)
+        self.assertTrue(result.ok)
+        self.assertEqual(result.draft.status, 'draft_only')
+        self.assertIn('no fee or deadline will change', result.draft.body)
+        self.assertEqual(self.tools.draft_change_request(args), result)
+        conflict = self.tools.draft_change_request(DraftChangeRequestInput(
+            project_id='project-001', analysis_id=analysis.analysis_id, operation_id='draft-checkout-other'
+        ))
+        self.assertTrue(conflict.ok)
+
+    def test_operation_id_conflict_is_rejected(self):
+        first = self.tools.analyze_scope_drift(AnalyzeScopeDriftInput(project_id='project-001', request_id='request-001')).analysis
+        second = self.tools.analyze_scope_drift(AnalyzeScopeDriftInput(project_id='project-002', request_id='request-004')).analysis
+        self.tools.draft_change_request(DraftChangeRequestInput(project_id='project-001', analysis_id=first.analysis_id, operation_id='same-op'))
+        result = self.tools.draft_change_request(DraftChangeRequestInput(project_id='project-002', analysis_id=second.analysis_id, operation_id='same-op'))
+        self.assertFalse(result.ok)
+        self.assertEqual(result.error.code, 'operation_id_conflict')
+
+    def test_draft_rejects_within_scope_analysis(self):
+        analysis = self.tools.analyze_scope_drift(AnalyzeScopeDriftInput(project_id='project-001', request_id='request-002')).analysis
+        result = self.tools.draft_change_request(DraftChangeRequestInput(
+            project_id='project-001', analysis_id=analysis.analysis_id, operation_id='not-drift'
+        ))
+        self.assertFalse(result.ok)
+        self.assertEqual(result.error.code, 'change_request_not_supported')
 
     def test_sandboxes_are_isolated(self):
         other = Sandbox.create()
         self.addCleanup(other.cleanup)
+        analysis = self.tools.analyze_scope_drift(AnalyzeScopeDriftInput(project_id='project-001', request_id='request-001')).analysis
+        self.assertIn(analysis.analysis_id, self.sandbox.analyses)
+        self.assertNotIn(analysis.analysis_id, other.analyses)
         self.assertNotEqual(self.sandbox.root, other.root)
-        result = self.tools.rename_file(RenameFileInput(file_id='file-001', new_name='renamed.txt', operation_id='isolation'))
-        self.assertTrue(result.ok)
-        self.assertEqual(other.record('file-001').path, 'Inbox/budget-2026.txt')
+
+    def test_unknown_project_raises_typed_error(self):
+        with self.assertRaises(SandboxError) as error:
+            self.sandbox.project('project-999')
+        self.assertEqual(error.exception.code, 'unknown_project_id')

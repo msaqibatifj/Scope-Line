@@ -1,8 +1,8 @@
-"""HTTP contracts and File Janitor's typed domain contracts."""
+"""HTTP contracts and Freelance Scope Drift Monitor domain contracts."""
 from typing import Literal
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class Contract(BaseModel):
@@ -53,6 +53,26 @@ class ToolTrace(Contract):
     latency_ms: float = Field(default=0, ge=0)
 
 
+ToolName = Literal['list_projects', 'inspect_agreement', 'analyze_scope_drift', 'draft_change_request']
+
+
+# One model decision: use one safe tool, ask a question, finish, or block.
+class AgentDecision(Contract):
+    status: Literal['call_tool', 'ask_clarification', 'finish', 'block']
+    tool: ToolName | None = None
+    arguments: dict = Field(default_factory=dict)
+    user_message: str | None = Field(default=None, max_length=1000)
+    reason: str = Field(default='', max_length=500)
+
+    @model_validator(mode='after')
+    def validate_status_shape(self):
+        if self.status == 'call_tool' and self.tool is None:
+            raise ValueError('call_tool decisions require a tool')
+        if self.status != 'call_tool' and self.tool is not None:
+            raise ValueError('only call_tool decisions may select a tool')
+        return self
+
+
 class Metrics(Contract):
     latency_ms: float = Field(default=0, ge=0)
     model_calls: int = Field(default=0, ge=0, le=6)
@@ -76,20 +96,51 @@ class ArenaResponse(Contract):
 
 class ChatRequest(ArenaRequest):
     session_id: str = Field(min_length=16, max_length=80)
-    model: str = Field(default='unconfigured', max_length=120)
+    model: str = Field(default='local-scripted', max_length=120)
 
 
-class FileRecord(Contract):
-    file_id: str = Field(min_length=1, max_length=80)
-    path: str = Field(min_length=1, max_length=300)
-    size_bytes: int = Field(ge=0)
-    sha256: str = Field(min_length=64, max_length=64)
-    fixture_origin: str = Field(min_length=1, max_length=120)
+class ProjectRecord(Contract):
+    project_id: str = Field(pattern=r'^project-\d{3}$')
+    client: str = Field(min_length=1, max_length=120)
+    project_name: str = Field(min_length=1, max_length=160)
+    agreed_deliverables: list[str] = Field(min_length=1, max_length=30)
+    exclusions: list[str] = Field(default_factory=list, max_length=30)
+    revision_limit: int = Field(ge=0, le=100)
+    revisions_used: int = Field(ge=0, le=100)
+    currency: str = Field(min_length=3, max_length=3)
+    hourly_rate: float = Field(gt=0, le=100000)
 
 
-class DuplicateGroup(Contract):
-    sha256: str = Field(min_length=64, max_length=64)
-    file_ids: list[str] = Field(min_length=2, max_length=20)
+class ClientRequestRecord(Contract):
+    request_id: str = Field(pattern=r'^request-\d{3}$')
+    project_id: str = Field(pattern=r'^project-\d{3}$')
+    request_text: str = Field(min_length=1, max_length=4000)
+    received_on: str = Field(min_length=10, max_length=10)
+
+
+class ScopeFinding(Contract):
+    category: Literal['deliverable_match', 'explicit_exclusion', 'revision_limit', 'missing_evidence']
+    evidence: str = Field(min_length=1, max_length=300)
+    explanation: str = Field(min_length=1, max_length=500)
+
+
+class ScopeAnalysis(Contract):
+    analysis_id: str = Field(pattern=r'^analysis-\d{3}$')
+    project_id: str = Field(pattern=r'^project-\d{3}$')
+    request_text: str = Field(min_length=1, max_length=4000)
+    classification: Literal['within_scope', 'scope_drift', 'ambiguous']
+    confidence: Literal['high', 'medium', 'low']
+    findings: list[ScopeFinding] = Field(min_length=1, max_length=20)
+    suggested_action: str = Field(min_length=1, max_length=500)
+
+
+class ChangeRequestDraft(Contract):
+    draft_id: str = Field(pattern=r'^draft-\d{3}$')
+    project_id: str = Field(pattern=r'^project-\d{3}$')
+    analysis_id: str = Field(pattern=r'^analysis-\d{3}$')
+    status: Literal['draft_only'] = 'draft_only'
+    subject: str = Field(min_length=1, max_length=200)
+    body: str = Field(min_length=1, max_length=4000)
 
 
 class ToolError(Contract):
@@ -100,27 +151,34 @@ class ToolError(Contract):
 class ToolResult(Contract):
     ok: bool
     operation_id: str | None = Field(default=None, max_length=100)
-    affected_file_ids: list[str] = Field(default_factory=list, max_length=20)
-    files: list[FileRecord] = Field(default_factory=list, max_length=100)
-    duplicate_groups: list[DuplicateGroup] = Field(default_factory=list, max_length=50)
+    projects: list[ProjectRecord] = Field(default_factory=list, max_length=100)
+    requests: list[ClientRequestRecord] = Field(default_factory=list, max_length=100)
+    analysis: ScopeAnalysis | None = None
+    draft: ChangeRequestDraft | None = None
     error: ToolError | None = None
 
 
-class ListFilesInput(Contract):
-    max_results: int = Field(default=50, ge=1, le=100)
+class ListProjectsInput(Contract):
+    max_results: int = Field(default=20, ge=1, le=100)
 
 
-class FindDuplicatesInput(Contract):
-    file_ids: list[str] | None = Field(default=None, min_length=1, max_length=100)
+class InspectAgreementInput(Contract):
+    project_id: str = Field(pattern=r'^project-\d{3}$')
 
 
-class RenameFileInput(Contract):
-    file_id: str = Field(min_length=1, max_length=80)
-    new_name: str = Field(min_length=1, max_length=180)
-    operation_id: str = Field(min_length=1, max_length=100)
+class AnalyzeScopeDriftInput(Contract):
+    project_id: str = Field(pattern=r'^project-\d{3}$')
+    request_id: str | None = Field(default=None, pattern=r'^request-\d{3}$')
+    request_text: str | None = Field(default=None, min_length=1, max_length=4000)
+
+    @model_validator(mode='after')
+    def require_request_source(self):
+        if not self.request_id and not self.request_text:
+            raise ValueError('request_id or request_text is required')
+        return self
 
 
-class MoveFilesInput(Contract):
-    file_ids: list[str] = Field(min_length=1, max_length=10)
-    destination_dir: str = Field(min_length=1, max_length=240)
+class DraftChangeRequestInput(Contract):
+    project_id: str = Field(pattern=r'^project-\d{3}$')
+    analysis_id: str = Field(pattern=r'^analysis-\d{3}$')
     operation_id: str = Field(min_length=1, max_length=100)

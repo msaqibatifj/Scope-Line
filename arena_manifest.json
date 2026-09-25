@@ -1,11 +1,11 @@
 {
   "arena_version": "0.1",
-  "agent_name": "Student Starter",
-  "domain": "Choose your domain",
-  "description": "Incomplete scaffold; agent must be implemented",
+  "agent_name": "ScopeLine",
+  "domain": "Freelance scope drift monitoring",
+  "description": "Compares client requests with project agreements, explains scope drift, and prepares private change-request drafts for freelancer review.",
   "endpoint": "/arena/run",
   "health_endpoint": "/health",
-  "implementation": "starter",
+  "implementation": "scopeline-v1",
   "fault_types": [
     "none",
     "tool_timeout",

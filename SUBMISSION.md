@@ -6,7 +6,7 @@ Replace i221234 with your roll number. Copy these details into i221234_submissio
 - Class / section:
 - University email:
 - GitHub username:
-- Agent name and domain:
+- Agent name and domain: ScopeLine - Freelance Scope Drift Monitor
 - Private GitHub repository URL:
 - Final source commit hash:
 - Working public agent interface URL:
@@ -15,12 +15,12 @@ Replace i221234 with your roll number. Copy these details into i221234_submissio
 - GET /arena/manifest URL:
 - API documentation URL:
 - Hosting provider:
-- Default model and provider:
-- Other available models:
-- Example input and expected behavior:
+- Default model and provider: local-scripted deterministic baseline
+- Other available models: nvidia/nemotron-3-ultra-550b-a55b:free, cohere/north-mini-code:free
+- Example input and expected behavior: "Analyze request-001 for project-001 and draft a change request" detects explicit scope drift and creates a private review-only draft.
 - Cold-start / restart limitations:
 - Instructor repository invitation status:
-- Public test result file:
+- Public test result file: evaluation/public_results.json
 
 Submit i221234.zip and i221234_submission.pdf in Google Classroom, then click Turn in.
 The ZIP must contain one i221234/ project folder including this file. See assignment Section 19.

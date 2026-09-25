@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: agent-arena-student
+    name: scopeline-agent
     runtime: python
     plan: free
     buildCommand: pip install -r requirements.txt
@@ -10,4 +10,16 @@ services:
       - key: PYTHON_VERSION
         value: 3.12.10
       - key: MODEL_PROVIDER
-        value: unconfigured
+        value: openrouter
+      - key: MODEL_NAME
+        value: local-scripted
+      - key: ALLOWED_MODELS
+        value: local-scripted,nvidia/nemotron-3-ultra-550b-a55b:free,cohere/north-mini-code:free
+      - key: ENABLE_LIVE_MODELS
+        value: true
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: SPEND_LIMIT_USD
+        value: 0
+      - key: MAX_LIVE_REQUESTS_PER_MINUTE
+        value: 10

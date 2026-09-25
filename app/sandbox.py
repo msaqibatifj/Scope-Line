@@ -1,15 +1,14 @@
-"""Application-owned fixture sandboxes for File Janitor tools."""
+"""Isolated, application-owned project records for scope-monitor tools."""
 from __future__ import annotations
 
-import hashlib
 import json
 import shutil
 import tempfile
 from dataclasses import dataclass, field
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 
 from app.config import ROOT
-from app.models import FileRecord
+from app.models import ChangeRequestDraft, ClientRequestRecord, ProjectRecord, ScopeAnalysis
 
 
 class SandboxError(ValueError):
@@ -20,76 +19,59 @@ class SandboxError(ValueError):
 
 @dataclass
 class Sandbox:
+    """A private copy of sample agreements, requests, analyses, and drafts."""
+
     root: Path
-    file_paths: dict[str, str]
-    origins: dict[str, str]
+    projects: dict[str, dict]
+    requests: dict[str, dict]
+    analyses: dict[str, ScopeAnalysis] = field(default_factory=dict)
+    drafts: dict[str, ChangeRequestDraft] = field(default_factory=dict)
     operations: dict[str, tuple[str, object]] = field(default_factory=dict)
 
     @classmethod
     def create(cls) -> 'Sandbox':
         fixture = json.loads((ROOT / 'data' / 'sample_data.json').read_text(encoding='utf-8'))
-        root = Path(tempfile.mkdtemp(prefix='file-janitor-'))
+        root = Path(tempfile.mkdtemp(prefix='scope-drift-'))
         try:
-            for directory in fixture['directories']:
-                (root / directory).mkdir(parents=True, exist_ok=False)
-            paths: dict[str, str] = {}
-            origins: dict[str, str] = {}
-            for item in fixture['files']:
-                relative = cls._validate_fixture_path(item['path'])
-                target = root / relative
-                target.parent.mkdir(parents=True, exist_ok=True)
-                target.write_text(item['content'], encoding='utf-8')
-                paths[item['id']] = relative.as_posix()
-                origins[item['id']] = item['origin']
-            return cls(root=root, file_paths=paths, origins=origins)
+            projects = {item['project_id']: item for item in fixture['projects']}
+            requests = {item['request_id']: item for item in fixture['requests']}
+            if len(projects) != len(fixture['projects']) or len(requests) != len(fixture['requests']):
+                raise SandboxError('duplicate_fixture_id', 'Fixture IDs must be unique.')
+            return cls(root=root, projects=projects, requests=requests)
         except Exception:
             shutil.rmtree(root, ignore_errors=True)
             raise
 
-    @staticmethod
-    def _validate_fixture_path(value: str) -> PurePosixPath:
-        path = PurePosixPath(value)
-        if path.is_absolute() or not path.parts or any(part in ('', '.', '..') for part in path.parts):
-            raise SandboxError('invalid_fixture_path', 'Fixture path must be a safe relative path.')
-        return path
-
     def cleanup(self) -> None:
         shutil.rmtree(self.root, ignore_errors=True)
 
-    def _resolve_relative(self, relative: str) -> Path:
-        path = PurePosixPath(relative)
-        if path.is_absolute() or any(part in ('', '.', '..') for part in path.parts):
-            raise SandboxError('path_outside_sandbox', 'Paths must remain relative to this sandbox.')
-        target = (self.root / Path(*path.parts)).resolve(strict=False)
-        if not target.is_relative_to(self.root.resolve()):
-            raise SandboxError('path_outside_sandbox', 'Path resolves outside this sandbox.')
-        return target
+    def project(self, project_id: str) -> ProjectRecord:
+        item = self.projects.get(project_id)
+        if item is None:
+            raise SandboxError('unknown_project_id', f'Unknown project ID: {project_id}')
+        # Matching signals are internal evidence indexes, not public agreement fields.
+        public_fields = {name: item[name] for name in ProjectRecord.model_fields}
+        return ProjectRecord.model_validate(public_fields)
 
-    def file_path(self, file_id: str) -> Path:
-        relative = self.file_paths.get(file_id)
-        if relative is None:
-            raise SandboxError('unknown_file_id', f'Unknown file ID: {file_id}')
-        path = self._resolve_relative(relative)
-        if path.is_symlink() or not path.is_file():
-            raise SandboxError('missing_source', f'File is unavailable: {file_id}')
-        return path
+    def request(self, request_id: str, project_id: str | None = None) -> ClientRequestRecord:
+        item = self.requests.get(request_id)
+        if item is None:
+            raise SandboxError('unknown_request_id', f'Unknown request ID: {request_id}')
+        record = ClientRequestRecord.model_validate(item)
+        if project_id and record.project_id != project_id:
+            raise SandboxError('request_project_mismatch', 'The request does not belong to the selected project.')
+        return record
 
-    def destination_directory(self, value: str) -> Path:
-        path = self._resolve_relative(value)
-        if path.is_symlink() or not path.is_dir():
-            raise SandboxError('invalid_destination', 'Destination must be an existing sandbox folder.')
-        return path
+    def all_projects(self) -> list[ProjectRecord]:
+        return [self.project(project_id) for project_id in sorted(self.projects)]
 
-    def record(self, file_id: str) -> FileRecord:
-        path = self.file_path(file_id)
-        digest = hashlib.sha256(path.read_bytes()).hexdigest()
-        return FileRecord(file_id=file_id, path=path.relative_to(self.root).as_posix(), size_bytes=path.stat().st_size, sha256=digest, fixture_origin=self.origins[file_id])
+    def project_signals(self, project_id: str) -> tuple[list[str], list[str]]:
+        self.project(project_id)
+        item = self.projects[project_id]
+        return list(item.get('within_scope_signals', [])), list(item.get('out_of_scope_signals', []))
 
-    def all_records(self) -> list[FileRecord]:
-        return [self.record(file_id) for file_id in sorted(self.file_paths)]
+    def next_analysis_id(self) -> str:
+        return f'analysis-{len(self.analyses) + 1:03d}'
 
-    def update_path(self, file_id: str, path: Path) -> None:
-        resolved = path.resolve(strict=True)
-        if not resolved.is_relative_to(self.root.resolve()):
-            raise SandboxError('path_outside_sandbox', 'Result escaped the sandbox.')
-        self.file_paths[file_id] = resolved.relative_to(self.root).as_posix()
+    def next_draft_id(self) -> str:
+        return f'draft-{len(self.drafts) + 1:03d}'
