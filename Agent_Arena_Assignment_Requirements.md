@@ -45,7 +45,7 @@ Status is based on the current project files. **[x]** means the named component 
 - [x] Give Arena runs independent workspaces and persist/reset chat workspaces by session.
 - [ ] Populate the UI selector with working configured models and verify an actual tool-using chat flow in the browser. The three configured choices are exposed by `/models`, and Nemotron completed one live tool call; browser-level verification and a successful terminal response remain.
 - [x] Replace starter identity/capability placeholders in `arena_manifest.json`, API metadata, and the UI.
-- [ ] Confirm the exact Arena schemas and fault behavior against the final course starter/announcement.
+- [x] Compare Arena schemas and fault behavior with the authoritative assignment PDF and available `student-agent/` implementation; both use the same request, response, fault, and limit shapes. No separate final announcement artifact is present locally, so a later announcement must still take precedence.
 
 ### Tests and evidence (§§10, 14)
 

@@ -1,8 +1,9 @@
 """Infrastructure and agent checks for ScopeLine."""
 import asyncio
 import unittest
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
+import httpx
 from fastapi.testclient import TestClient
 
 from app.config import settings
@@ -214,6 +215,35 @@ class ScopeLineTests(unittest.TestCase):
         self.assertEqual(decision['arguments'], {'max_results': 20})
         self.assertEqual(usage['input_tokens'], 100)
         self.assertEqual(usage['estimated_cost_usd'], 0.000123)
+
+    def test_transient_openrouter_failure_uses_traced_local_fallback(self):
+        # A temporary live-provider outage remains bounded and observable.
+        original = {
+            'provider': settings.model_provider,
+            'allowed': settings.allowed_models,
+            'enabled': settings.enable_live_models,
+            'key': settings.openrouter_api_key,
+        }
+        try:
+            settings.model_provider = 'openrouter'
+            settings.allowed_models = 'local-scripted,nvidia/nemotron-3-ultra-550b-a55b:free'
+            settings.enable_live_models = True
+            settings.openrouter_api_key = 'sk-or-test'
+            with patch.object(OpenRouterDecisionProvider, 'decide', new=AsyncMock(side_effect=httpx.ReadTimeout('provider busy'))):
+                with TestClient(app) as client:
+                    data = client.post('/chat', json={
+                        'session_id': 'fallback-test-session',
+                        'task': 'List projects',
+                        'model': 'nvidia/nemotron-3-ultra-550b-a55b:free',
+                    }).json()
+            self.assertEqual(data['status'], 'completed')
+            self.assertTrue(any(event.get('event') == 'provider_fallback' for event in data['events']))
+            self.assertEqual(data['tool_calls'][0]['tool'], 'list_projects')
+        finally:
+            settings.model_provider = original['provider']
+            settings.allowed_models = original['allowed']
+            settings.enable_live_models = original['enabled']
+            settings.openrouter_api_key = original['key']
 
     def test_agent_lists_projects(self):
         # The agent selects the project inventory tool, then finishes.

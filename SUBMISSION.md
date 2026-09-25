@@ -15,7 +15,7 @@ Replace i221234 with your roll number. Copy these details into i221234_submissio
 - GET /arena/manifest URL:
 - API documentation URL:
 - Hosting provider:
-- Default model and provider: local-scripted deterministic baseline
+- Default model and provider: nvidia/nemotron-3-ultra-550b-a55b:free through OpenRouter
 - Other available models: nvidia/nemotron-3-ultra-550b-a55b:free, cohere/north-mini-code:free
 - Example input and expected behavior: "Analyze request-001 for project-001 and draft a change request" detects explicit scope drift and creates a private review-only draft.
 - Cold-start / restart limitations:

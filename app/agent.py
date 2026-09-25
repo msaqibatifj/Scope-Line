@@ -268,8 +268,22 @@ async def run_agent(request, history, model, *, sandbox):
                 continue
             return _response(request, 'contract_error', 'The agent decision contract could not be repaired.', steps, 'decision_contract_invalid', tool_calls, errors, events, usage)
         except Exception as error:
-            errors.append({'step': step, 'type': 'model_error', 'message': str(error)[:500]})
-            return _response(request, 'failed', 'The selected model call failed safely.', steps, 'model_call_failed', tool_calls, errors, events, usage)
+            if use_live and _is_transient_model_error(error):
+                # A temporary provider outage downgrades once to the tested local policy.
+                use_live = False
+                message = str(error)[:500]
+                errors.append({'step': step, 'type': 'model_dependency', 'message': message})
+                events.append({
+                    'step': step,
+                    'event': 'provider_fallback',
+                    'from_model': model,
+                    'to_model': 'local-scripted',
+                    'reason': type(error).__name__,
+                })
+                raw_decision = local_provider.decide(request, history, observations, repair_requested=repair_used)
+            else:
+                errors.append({'step': step, 'type': 'model_error', 'message': str(error)[:500]})
+                return _response(request, 'failed', 'The selected model call failed safely.', steps, 'model_call_failed', tool_calls, errors, events, usage)
 
         # Step 3: inject the selected Arena fault once.
         if fault_type == 'invalid_agent_decision' and not fault_used:
@@ -477,3 +491,12 @@ def _add_optional(left, right):
     if right is None:
         return left
     return left + right
+
+
+def _is_transient_model_error(error):
+    if isinstance(error, (httpx.TimeoutException, httpx.NetworkError)):
+        return True
+    if isinstance(error, httpx.HTTPStatusError):
+        status = error.response.status_code
+        return status == 429 or status >= 500
+    return False

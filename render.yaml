@@ -12,7 +12,7 @@ services:
       - key: MODEL_PROVIDER
         value: openrouter
       - key: MODEL_NAME
-        value: local-scripted
+        value: nvidia/nemotron-3-ultra-550b-a55b:free
       - key: ALLOWED_MODELS
         value: local-scripted,nvidia/nemotron-3-ultra-550b-a55b:free,cohere/north-mini-code:free
       - key: ENABLE_LIVE_MODELS

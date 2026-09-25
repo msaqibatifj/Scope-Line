@@ -104,7 +104,7 @@ enable the two OpenRouter comparison models, place the following in `.env`:
 
 ```env
 MODEL_PROVIDER=openrouter
-MODEL_NAME=local-scripted
+MODEL_NAME=nvidia/nemotron-3-ultra-550b-a55b:free
 ALLOWED_MODELS=local-scripted,nvidia/nemotron-3-ultra-550b-a55b:free,cohere/north-mini-code:free
 ENABLE_LIVE_MODELS=true
 OPENROUTER_API_KEY=sk-or-v1-your-key-here
@@ -124,10 +124,10 @@ or included in traces. OpenRouter's reported request cost is used when present.
 The zero-dollar spend guard permits only model IDs ending in `:free`; a paid model
 still requires an explicit positive budget before its first request.
 
-The public default remains `local-scripted` because it passed all ten repeatable
-evaluation cases, while the two free OpenRouter endpoints were inconsistent and
-rate limited during the recorded comparison. Live choices remain available from
-the UI for explicit testing. Each process admits at most
+The deployed default is Nemotron so a model influences the agent's action and stop
+decisions as required by the assignment. If OpenRouter times out, returns HTTP 429,
+or has a transient server/network failure, the run switches once to the tested
+`local-scripted` policy and records a `provider_fallback` event. Each process admits at most
 `MAX_LIVE_REQUESTS_PER_MINUTE` live runs and accumulates provider-reported cost
 against `SPEND_LIMIT_USD`; both counters reset when the process restarts.
 
@@ -136,12 +136,12 @@ against `SPEND_LIMIT_USD`; both counters reset when the process restarts.
 The same ten cases were run against both live candidates. Nemotron scored 0/10
 task successes at 23.23 seconds average latency; North scored 1/10 at 19.85
 seconds. Both reported $0 cost, but contract-tool failures, timeouts, and subsequent
-HTTP 429 responses made neither suitable as the evaluation default. Nemotron's 1M
+HTTP 429 responses made neither reliable without a fallback. Nemotron's 1M
 context and stronger reasoning profile suit nuanced agreement review; North's 256K
 context and smaller active footprint favor latency. ScopeLine needs far less context
 than either limit, so observed reliability outranks context size. The post-fix
-Nemotron smoke run completed correctly in 12.49 seconds, making it the preferred
-experimental live choice. Full evidence is in
+Nemotron smoke run completed correctly in 12.49 seconds, making it the selected
+live default with a deterministic dependency fallback. Full evidence is in
 `evaluation/model_comparison.md` and `evaluation/model_comparison_results.json`.
 
 Free endpoints are rate limited and their availability can change. Do not use the

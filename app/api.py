@@ -5,7 +5,7 @@ from app.config import ROOT, settings
 from app.models import ArenaRequest, ArenaResponse, ChatRequest
 from app.arena import execute
 from app.memory import SessionCapacityError
-from app.providers import available_model_names, default_model_name, model_preflight
+from app.providers import LOCAL_MODEL, available_model_names, default_model_name, model_preflight
 router = APIRouter()
 @router.get('/')
 def index(): return FileResponse(ROOT / 'app/static/index.html')
@@ -20,10 +20,12 @@ def models():
 async def arena_run(payload: ArenaRequest, request: Request):
     model = default_model_name()
     admitted, reason = request.app.state.live_usage.admit(model)
+    execution_model = model if admitted else LOCAL_MODEL
+    result = await execute(payload, model=execution_model)
     if not admitted:
-        raise HTTPException(429, reason)
-    result = await execute(payload, model=model)
-    request.app.state.live_usage.record(model, result.metrics.estimated_cost_usd)
+        result.events.insert(0, {'step': 0, 'event': 'provider_fallback', 'from_model': model, 'to_model': LOCAL_MODEL, 'reason': reason})
+    else:
+        request.app.state.live_usage.record(model, result.metrics.estimated_cost_usd)
     return result
 @router.post('/chat', response_model=ArenaResponse)
 async def chat(payload: ChatRequest, request: Request):
@@ -35,8 +37,7 @@ async def chat(payload: ChatRequest, request: Request):
         raise HTTPException(429, 'Chat concurrency limit reached')
     if payload.session_id in busy: raise HTTPException(409, 'This chat is already running')
     admitted, admission_reason = request.app.state.live_usage.admit(payload.model)
-    if not admitted:
-        raise HTTPException(429, admission_reason)
+    execution_model = payload.model if admitted else LOCAL_MODEL
     busy.add(payload.session_id)
     memory = request.app.state.memory
     try:
@@ -44,8 +45,11 @@ async def chat(payload: ChatRequest, request: Request):
             sandbox = memory.begin(payload.session_id)
         except SessionCapacityError as error:
             raise HTTPException(503, str(error)) from error
-        result = await execute(payload, memory.get(payload.session_id), payload.model, sandbox=sandbox)
-        request.app.state.live_usage.record(payload.model, result.metrics.estimated_cost_usd)
+        result = await execute(payload, memory.get(payload.session_id), execution_model, sandbox=sandbox)
+        if not admitted:
+            result.events.insert(0, {'step': 0, 'event': 'provider_fallback', 'from_model': payload.model, 'to_model': LOCAL_MODEL, 'reason': admission_reason})
+        else:
+            request.app.state.live_usage.record(payload.model, result.metrics.estimated_cost_usd)
         memory.add(payload.session_id, payload.task, result.final_response)
         return result
     finally:

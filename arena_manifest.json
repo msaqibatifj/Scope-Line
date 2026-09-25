@@ -17,5 +17,9 @@
     "max_tool_retries": 2,
     "run_timeout_seconds": 40,
     "max_response_bytes": 50000
+  },
+  "autonomy_boundary": {
+    "allowed": ["read synthetic project records", "classify scope drift", "prepare private drafts"],
+    "requires_approval_or_blocked": ["contact clients", "change agreements", "issue invoices", "charge clients"]
   }
 }

@@ -10,7 +10,7 @@ ten synthetic cases on 2026-09-25 using one API key.
 
 | Model | Provider | Status | ScopeLine alignment |
 | --- | --- | --- | --- |
-| `local-scripted` | Local deterministic | Selected default: 10/10 public cases | Repeatable control-flow and fault baseline. |
+| `local-scripted` | Local deterministic | Dependency fallback: 10/10 public cases | Repeatable control-flow and fault baseline. |
 | `nvidia/nemotron-3-ultra-550b-a55b:free` | OpenRouter | 0/10 initial comparison | Better reasoning candidate, but inconsistent decision-tool compliance. |
 | `cohere/north-mini-code:free` | OpenRouter | 1/10 initial comparison | Slightly better action selection, but inconsistent and frequently slow. |
 
@@ -38,10 +38,11 @@ output tokens, $0 reported cost). North still timed out. A complete post-fix rer
 was attempted, but OpenRouter returned HTTP 429 for the free endpoints. That run is
 preserved in `evaluation/model_comparison_rate_limited_results.json`.
 
-The deployment default is therefore `local-scripted`. Nemotron remains the first
-experimental live choice because it completed the post-fix tool loop; North remains
-the secondary comparison model. Neither free endpoint should handle confidential
-client data or be treated as production-reliable.
+The deployment default is Nemotron because the course requires a model to influence
+meaningful execution decisions and it completed the post-fix tool loop. The local
+policy is retained only as a traced fallback for transient provider failure; North
+remains the secondary comparison model. Neither free endpoint should handle
+confidential client data or be treated as production-reliable.
 
 ## Common inputs
 
