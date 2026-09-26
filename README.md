@@ -35,11 +35,12 @@ draft. It never contacts a client or changes a commercial agreement.
 2. Ask the selected provider for exactly one typed decision.
 3. Validate the decision and domain-specific arguments before execution.
 4. Execute at most one tool, record its result, and feed that observation back.
-5. Finish, ask, block, fail safely, or stop when the six-step budget is reached.
+5. Finish only from validated agreement, analysis, or draft evidence; otherwise repair once or stop with a typed contract error.
 
 One repair is allowed for an invalid decision. Tool timeouts and malformed outputs
-are retried within `MAX_TOOL_RETRIES`. Arena fault injection affects only the first
-matching operation.
+are retried within `MAX_TOOL_RETRIES`. Each tool attempt operates on an isolated
+sandbox copy and commits only after its typed result succeeds before the run
+deadline. Arena fault injection affects only the first matching operation.
 
 ## Tools
 
@@ -59,12 +60,12 @@ instruction-like language.
 
 ```text
 app/
-  agent.py       bounded loop, local decisions, OpenRouter adapter, fault handling
+  agent.py       bounded loop, local decisions, provider adapters, fault handling
   models.py      HTTP, decision, tool-input, and tool-output contracts
   tools.py       agreement inspection, analysis, and drafting tools
   sandbox.py     isolated per-run/per-chat project workspace
   prompts.py     trust-separated dynamic context
-  providers.py   model allowlist, OpenRouter preflight, and cost tracking
+  providers.py   model routing, provider preflight, and cost tracking
   api.py         Arena and chat endpoints
   static/        ScopeLine browser interface
 data/
@@ -97,57 +98,108 @@ cp .env.example .env
 Open `http://127.0.0.1:8000/` for the interface or
 `http://127.0.0.1:8000/docs` for API documentation.
 
-## OpenRouter setup
+## Gemini and Groq setup
 
-The free `local-scripted` provider is always available for repeatable tests. To
-enable the two OpenRouter comparison models, place the following in `.env`:
+ScopeLine compares two Gemini candidates and uses Qwen as the sole runtime backup:
+
+| Role | ScopeLine model ID | Provider API model ID |
+| --- | --- | --- |
+| Candidate A (provisional default) | `gemini-3.1-flash-lite` | `gemini-3.1-flash-lite` (Google) |
+| Candidate B | `gemini-3.5-flash-lite` | `gemini-3.5-flash-lite` (Google) |
+| Backup | `groq/qwen3.8-27b` | `qwen/qwen3.8-27b` (Groq) |
+| Offline tests | `local-scripted` | No provider call |
+
+Set `GEMINI_API_KEY` and `GROQ_API_KEY` in your local `.env` or host secrets.
+The two Gemini models share the Gemini key; Qwen uses a separate Groq key.
+The existing OpenRouter adapter remains available for historical reproducibility,
+but OpenRouter is not used by these three model IDs.
 
 ```env
-MODEL_PROVIDER=openrouter
-MODEL_NAME=nvidia/nemotron-3-ultra-550b-a55b:free
-ALLOWED_MODELS=local-scripted,nvidia/nemotron-3-ultra-550b-a55b:free,cohere/north-mini-code:free
+MODEL_PROVIDER=gemini
+MODEL_NAME=gemini-3.1-flash-lite
+ALLOWED_MODELS=local-scripted,gemini-3.1-flash-lite,gemini-3.5-flash-lite,groq/qwen3.8-27b
+FALLBACK_MODELS=groq/qwen3.8-27b
 ENABLE_LIVE_MODELS=true
-OPENROUTER_API_KEY=sk-or-v1-your-key-here
-OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
-OPENROUTER_SITE_URL=
-OPENROUTER_APP_NAME=ScopeLine
-MAX_LIVE_REQUESTS_PER_MINUTE=10
+GEMINI_API_KEY=
+GROQ_API_KEY=
+ALLOW_MODEL_FALLBACK=true
+ALLOW_LOCAL_FALLBACK=false
+DIRECT_API_FREE_TIER=true
 SPEND_LIMIT_USD=0
+MODEL_TIMEOUT_SECONDS=10
 ```
 
-`nvidia/nemotron-3-ultra-550b-a55b:free` is the reasoning-quality candidate.
-`cohere/north-mini-code:free` is the fast comparison model with about 3B active
-parameters. These free endpoints support tool calls but not `response_format`, so
-the adapter requires one `submit_agent_decision` function call and then validates
-its arguments with Pydantic before execution. No API key is returned by `/models`
-or included in traces. OpenRouter's reported request cost is used when present.
-The zero-dollar spend guard permits only model IDs ending in `:free`; a paid model
-still requires an explicit positive budget before its first request.
+`DIRECT_API_FREE_TIER=true` declares that the Gemini and Groq keys use free-tier
+accounts with paid billing disabled. This setting does not change provider billing;
+provider-side quotas enforce free usage. For paid accounts, set it to `false` and
+configure a positive `SPEND_LIMIT_USD`. The process-local guard uses returned cost
+when available; unknown paid pricing remains `null` rather than being reported as
+zero. It is not a provider billing cap. Token usage is recorded for successful
+parsed responses. Use synthetic assignment fixtures for evaluation.
 
-The deployed default is Nemotron so a model influences the agent's action and stop
-decisions as required by the assignment. If OpenRouter times out, returns HTTP 429,
-or has a transient server/network failure, the run switches once to the tested
-`local-scripted` policy and records a `provider_fallback` event. Each process admits at most
-`MAX_LIVE_REQUESTS_PER_MINUTE` live runs and accumulates provider-reported cost
-against `SPEND_LIMIT_USD`; both counters reset when the process restarts.
+Each call selects exactly one domain tool or terminal decision (`finish`,
+`ask_clarification`, `block`) over the providers' OpenAI-compatible HTTPS APIs.
+Each function's schema is generated from its Pydantic input contract, including
+required fields, permitted arguments and length/range constraints. The application
+validates the selected function before execution; it never strips invalid fields
+to conceal a contract error. When the model chooses `finish`, the final response is
+rendered from the validated tool evidence rather than an unsupported model claim.
+Gemini uses minimal thinking; Qwen uses instruct mode. No additional SDK is needed.
 
-## Model selection evidence
+On timeout, network failure, HTTP 429, or server error, the next configured,
+credentialed model takes over with the existing tool observations and run state.
+Each failed provider attempt consumes a decision step. Backups share the six-step
+and 40-second run budgets, and every switch emits `provider_fallback`. Either Gemini candidate falls back directly to Qwen; the Gemini candidates never
+fall back to each other, and Qwen never cycles back to Gemini.
+Authentication failures and invalid model decisions follow typed failure/repair
+handling instead of silently switching providers.
 
-The same ten cases were run against both live candidates. Nemotron scored 0/10
-task successes at 23.23 seconds average latency; North scored 1/10 at 19.85
-seconds. Both reported $0 cost, but contract-tool failures, timeouts, and subsequent
-HTTP 429 responses made neither reliable without a fallback. Nemotron's 1M
-context and stronger reasoning profile suit nuanced agreement review; North's 256K
-context and smaller active footprint favor latency. ScopeLine needs far less context
-than either limit, so observed reliability outranks context size. The post-fix
-Nemotron smoke run completed correctly in 12.49 seconds, making it the selected
-live default with a deterministic dependency fallback. Full evidence is in
-`evaluation/model_comparison.md` and `evaluation/model_comparison_results.json`.
+Automatic deterministic fallback is disabled by default. `local-scripted` remains
+selectable for offline testing. Missing keys produce an explicit readiness/failure
+state; they do not establish a successful live-model run.
 
-Free endpoints are rate limited and their availability can change. Do not use the
-NVIDIA free endpoint for confidential or personal client data; it is configured
-here only for synthetic assignment fixtures. A production launch needs models and
-provider policies approved for private commercial documents.
+## Model selection evidence and release gate
+
+The latest live comparison used the same ten cases with both fallback paths disabled.
+The first run saved `evaluation/gemini_comparison_results.json`; a slower retry with
+`MODEL_TIMEOUT_SECONDS=30` and `--delay 30` saved `evaluation/gemini_comparison_results_retry.json`:
+
+| Candidate | Best live-only task checks passed | Valid contracts | Mean run latency | Input / output tokens | Fallback runs |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Gemini 3.1 Flash-Lite | 9/10 | 10/10 | 5.91 s | 50,385 / 706 | 0 |
+| Gemini 3.5 Flash-Lite | 9/10 | 10/10 | 3.93 s | 50,733 / 510 | 0 |
+
+The remaining 3.1 retry failure was a Gemini API 503 on `List projects`. The remaining
+3.5 retry failure was a correctly rejected model action: it selected `list_projects`
+when the task needed a clarification. The project release target remains 9/10
+live-only successes with no fallback. 3.1 remains the default because it has the
+best combined controller alignment and runtime-backup path. See
+[evaluation/gemini_comparison.md](evaluation/gemini_comparison.md) for case results,
+limitations, source provenance and raw evidence. Estimated cost was zero under the
+configured free-tier assumption; this is not a provider billing receipt.
+
+The historical OpenRouter results remain in `evaluation/model_comparison_results.json`
+and do not apply to the current models.
+
+Before release, start the server with **both** `ALLOW_MODEL_FALLBACK=false` and
+`ALLOW_LOCAL_FALLBACK=false`, then run the two Gemini candidates against the same
+ten cases. The runner writes `evaluation/gemini_comparison_results.json`, keeping
+historical results intact. A run that switches to any backup does not count as a
+success for the originally selected model. Qwen is the runtime backup, not a candidate in this comparison. The runner refuses
+to benchmark a server with either fallback switch enabled. Select the production
+Gemini default after reviewing the comparison; 3.1 is provisional until then.
+
+Record task success, model-decision validity, action selection, latency, tokens and
+cost. The runner's outer-response contract check alone does not measure model-decision
+validity. The project release target remains at least 9/10 live-only successes with
+no autonomy or unsupported-completion failures. This is a project target, not a
+threshold prescribed by the assignment. Restore model fallback after comparison.
+
+Official provider references:
+[Gemini 3.1](https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-lite),
+[Gemini 3.5](https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite),
+[Gemini API compatibility](https://ai.google.dev/gemini-api/docs/openai), and
+[Groq Qwen 3.8 27B](https://console.groq.com/docs/model/qwen/qwen3.8-27b).
 
 ## API
 
@@ -155,6 +207,7 @@ provider policies approved for private commercial documents.
 - `GET /models`
 - `GET /arena/manifest`
 - `POST /arena/run`
+- `POST /run` — alias with the same request, response, default model and execution limits
 - `POST /chat`
 - `DELETE /chat/{session_id}`
 
@@ -177,19 +230,41 @@ status, step count, stop reason, tool trace, errors, events, and metrics.
 ```bash
 .venv/bin/python -m unittest discover -s tests -v
 .venv/bin/python evaluation/run_public_tests.py --url http://127.0.0.1:8000
+# Start a server with ALLOW_MODEL_FALLBACK=false and ALLOW_LOCAL_FALLBACK=false for comparison.
+.venv/bin/python evaluation/run_model_comparison.py --url http://127.0.0.1:8000 --delay 20
+# Or run the local API in-process, with real inference and fallback disabled automatically:
+.venv/bin/python evaluation/run_model_comparison.py --in-process --delay 20
 ```
 
-The test suite covers the four tools, three classifications, clarification,
+The test suite covers the four tools, conservative mixed/negated classifications, clarification,
 multi-turn continuity, autonomy boundaries, untrusted input, replay safety,
 session isolation, step exhaustion, invalid decisions, dependency faults, and
-OpenRouter request construction without making a paid call.
+provider request construction without making a paid call.
 
 ## Deployment notes
 
 Use one worker because chat memory and project workspaces are process-local.
-For Render, use build command `pip install -r requirements.txt` and start command
-`uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1`. Configure the OpenRouter
-key only in host secrets. Free-service restarts erase in-memory chats and drafts.
+For Vercel, `vercel.json` routes requests to `api/index.py`, which imports the
+FastAPI ASGI app from `app.main`. Configure Gemini and Groq keys only in host
+secrets. For Render, use build command `pip install -r requirements.txt` and start
+command `uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1`. Free-service
+restarts erase in-memory chats and drafts. `/models` reports whether the configured
+live default is ready and the UI exposes degraded fallback mode when a transient
+provider failure occurs.
+
+## Submission packaging
+
+Copy `release/submission.example.json` outside the repository, fill every required
+field only after deploying the recorded commit, then run:
+
+```bash
+.venv/bin/python release/prepare_submission.py --metadata /safe/path/submission.json
+```
+
+The command creates the required roll-number ZIP and clickable submission PDF in
+`dist/`. It uses an allowlist and excludes secrets, environments, PDFs used as
+references, Git metadata, and `student-agent/`. Extract the ZIP to a fresh folder,
+install dependencies, run the tests, and verify the public URLs before upload.
 
 ## Known limitations
 
@@ -198,8 +273,3 @@ key only in host secrets. Free-service restarts erase in-memory chats and drafts
 - Drafts are not sent and estimates are not finalized automatically.
 - The included records are synthetic; production use needs authenticated tenant
   storage, encryption, durable audit/rate/spend counters, and explicit client consent.
-
-OpenRouter references: https://openrouter.ai/docs/quickstart,
-https://openrouter.ai/docs/guides/features/structured-outputs,
-https://openrouter.ai/nvidia/nemotron-3-ultra-550b-a55b:free, and
-https://openrouter.ai/cohere/north-mini-code:free.

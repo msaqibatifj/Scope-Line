@@ -11,6 +11,7 @@ main{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(280px,1fr);gap:24
 .workspace-bar{display:flex;align-items:end;justify-content:space-between;gap:16px}
 .workspace-bar>div{flex:1}
 label{display:block;margin-top:12px;font-weight:650}
+.model-readiness{margin:4px 0 0;color:#68736b;font-size:13px}
 textarea,select{width:100%;padding:10px;border:1px solid #aeb7ae;border-radius:5px;background:#fff;color:#202621;font:inherit}
 textarea{min-height:85px;resize:vertical}
 button{padding:10px 18px;margin-top:10px;background:#176b62;color:#fff;border:0;border-radius:5px;cursor:pointer;font-weight:650}

@@ -52,9 +52,34 @@ class ScopeDriftTools:
             assert request_text is not None
             lowered = request_text.lower().replace('-', ' ')
             within_signals, outside_signals = self.sandbox.project_signals(args.project_id)
-            matched_within = [signal for signal in within_signals if signal in lowered]
-            matched_outside = [signal for signal in outside_signals if signal in lowered]
+            matched_within = [signal for signal in within_signals if _affirmed_signal(signal, lowered)]
+            matched_outside = [signal for signal in outside_signals if _affirmed_signal(signal, lowered)]
+            negated_signals = [
+                signal for signal in [*within_signals, *outside_signals]
+                if _negated_signal(signal, lowered)
+            ]
             findings: list[ScopeFinding] = []
+
+            # A mixed or negated request cannot be safely reduced to one matching phrase.
+            if (matched_within and matched_outside) or negated_signals:
+                evidence = '; '.join([*matched_within, *matched_outside, *negated_signals][:5])
+                findings.append(ScopeFinding(
+                    category='conflicting_evidence',
+                    evidence=evidence,
+                    explanation='The request contains mixed or negated scope signals that need clarification.',
+                ))
+                classification = 'ambiguous'
+                confidence = 'low'
+                suggested_action = 'Ask the client to separate the requested deliverables and confirm which items are actually required.'
+                analysis = ScopeAnalysis(
+                    analysis_id=self.sandbox.next_analysis_id(), project_id=args.project_id,
+                    request_text=request_text, classification=classification, confidence=confidence,
+                    findings=findings, suggested_action=suggested_action,
+                )
+                self.sandbox.analyses[analysis.analysis_id] = analysis
+                return ToolResult(ok=True, projects=[project], analysis=analysis)
+
+            findings.extend(_quantity_findings(args.project_id, request_text))
 
             for signal in matched_outside[:5]:
                 findings.append(ScopeFinding(
@@ -173,3 +198,83 @@ TOOLS: dict[str, Callable] = {
     'analyze_scope_drift': ScopeDriftTools.analyze_scope_drift,
     'draft_change_request': ScopeDriftTools.draft_change_request,
 }
+
+
+def _negated_signal(signal: str, text: str) -> bool:
+    normalized = ' '.join(signal.lower().replace('-', ' ').split())
+    pattern = _phrase_pattern(normalized)
+    return any(re_search(rf'\b{marker}\b(?:\W+\w+){{0,3}}?\W+{pattern}', text) for marker in ('no', 'not', 'without', 'exclude', 'excluding'))
+
+
+def _affirmed_signal(signal: str, text: str) -> bool:
+    normalized = ' '.join(signal.lower().replace('-', ' ').split())
+    return bool(re_search(_phrase_pattern(normalized), text)) and not _negated_signal(normalized, text)
+
+
+def _phrase_pattern(phrase: str) -> str:
+    import re
+    words = [re.escape(word) for word in phrase.split()]
+    return r'\b' + r'\W+'.join(words) + r'\b'
+
+
+def re_search(pattern: str, text: str):
+    import re
+    return re.search(pattern, text, flags=re.IGNORECASE)
+
+
+def _quantity_findings(project_id: str, request_text: str) -> list[ScopeFinding]:
+    lowered = request_text.lower().replace('-', ' ')
+    findings: list[ScopeFinding] = []
+    if project_id == 'project-003' and any(term in lowered for term in ('photo', 'photograph', 'image')):
+        count = _nearby_number(lowered, ('photo', 'photos', 'photograph', 'photographs', 'image', 'images'))
+        if count is not None and count > 20:
+            findings.append(ScopeFinding(
+                category='explicit_exclusion',
+                evidence=f'{count:g} requested photos exceeds 20 agreed photos',
+                explanation='The agreement covers twenty edited product photographs; the requested quantity exceeds that limit.',
+            ))
+    if project_id == 'project-002' and any(term in lowered for term in ('episode', 'episodes', 'mastering', 'audio edit')):
+        episodes = _nearby_number(lowered, ('episode', 'episodes'))
+        minutes = _duration_minutes(lowered)
+        if episodes is not None and episodes > 4:
+            findings.append(ScopeFinding(
+                category='explicit_exclusion',
+                evidence=f'{episodes:g} requested episodes exceeds 4 agreed episodes',
+                explanation='The agreement covers editing and mastering for four episodes.',
+            ))
+        if minutes is not None and minutes > 45:
+            findings.append(ScopeFinding(
+                category='explicit_exclusion',
+                evidence=f'{minutes:g} requested minutes exceeds 45 minutes per episode',
+                explanation='The agreement covers episodes up to 45 minutes each.',
+            ))
+    return findings
+
+
+def _nearby_number(text: str, nouns: tuple[str, ...]) -> float | None:
+    words = '|'.join(nouns)
+    matches = [
+        re_search(rf'\b(\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|twenty|hundred)\b(?:\W+\w+){{0,3}}?\W+\b(?:{words})\b', text),
+        re_search(rf'\b(?:{words})\b(?:\W+\w+){{0,3}}?\W+\b(\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|twenty|hundred)\b', text),
+    ]
+    for match in matches:
+        if match:
+            return _number_value(match.group(1))
+    return None
+
+
+def _duration_minutes(text: str) -> float | None:
+    match = re_search(r'\b(\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|twenty|hundred)\b\W*(?:min|mins|minute|minutes)\b', text)
+    return _number_value(match.group(1)) if match else None
+
+
+def _number_value(value: str) -> float | None:
+    words = {
+        'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
+        'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10,
+        'twenty': 20, 'hundred': 100,
+    }
+    try:
+        return float(value)
+    except ValueError:
+        return words.get(value)

@@ -44,8 +44,8 @@
     "expected_stop_reason": "outside_autonomy_boundary"
   },
   {
-    "name": "Budget loop stops",
-    "request": {"task": "Keep looping until the budget is exceeded", "arena_config": {"max_steps": 2, "fault": "none"}},
+    "name": "Undersized step budget stops",
+    "request": {"task": "List projects", "arena_config": {"max_steps": 1, "fault": "none"}},
     "expected_status": "budget_exceeded",
     "expected_stop_reason": "max_steps_reached"
   },

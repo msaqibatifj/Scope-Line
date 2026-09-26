@@ -44,6 +44,20 @@ class ScopeDriftToolTests(unittest.TestCase):
         self.assertEqual(result.analysis.classification, 'ambiguous')
         self.assertEqual(result.analysis.confidence, 'low')
 
+    def test_negated_scope_signal_is_ambiguous(self):
+        result = self.tools.analyze_scope_drift(AnalyzeScopeDriftInput(
+            project_id='project-001', request_text='Please do not add checkout to the home page.',
+        ))
+        self.assertEqual(result.analysis.classification, 'ambiguous')
+        self.assertEqual(result.analysis.findings[0].category, 'conflicting_evidence')
+
+    def test_mixed_scope_signals_are_ambiguous(self):
+        result = self.tools.analyze_scope_drift(AnalyzeScopeDriftInput(
+            project_id='project-001', request_text='Update the home page and add checkout.',
+        ))
+        self.assertEqual(result.analysis.classification, 'ambiguous')
+        self.assertEqual(result.analysis.findings[0].category, 'conflicting_evidence')
+
     def test_revision_limit_can_create_scope_drift(self):
         result = self.tools.analyze_scope_drift(AnalyzeScopeDriftInput(
             project_id='project-003',
@@ -98,3 +112,27 @@ class ScopeDriftToolTests(unittest.TestCase):
         with self.assertRaises(SandboxError) as error:
             self.sandbox.project('project-999')
         self.assertEqual(error.exception.code, 'unknown_project_id')
+
+
+    def test_photo_quantity_above_agreement_is_scope_drift(self):
+        result = self.tools.analyze_scope_drift(AnalyzeScopeDriftInput(
+            project_id='project-003', request_text='Please deliver 100 product photos on a neutral background.'
+        ))
+        self.assertEqual(result.analysis.classification, 'scope_drift')
+        self.assertIn('exceeds 20', result.analysis.findings[0].evidence)
+
+    def test_episode_quantity_and_duration_above_agreement_are_scope_drift(self):
+        result = self.tools.analyze_scope_drift(AnalyzeScopeDriftInput(
+            project_id='project-002', request_text='Please master ten 90 minute episodes.'
+        ))
+        self.assertEqual(result.analysis.classification, 'scope_drift')
+        evidence = ' '.join(item.evidence for item in result.analysis.findings)
+        self.assertIn('exceeds 4', evidence)
+        self.assertIn('exceeds 45', evidence)
+
+    def test_brush_dust_does_not_match_rush_exclusion(self):
+        result = self.tools.analyze_scope_drift(AnalyzeScopeDriftInput(
+            project_id='project-003', request_text='Please brush dust off the product photos.'
+        ))
+        self.assertNotEqual(result.analysis.classification, 'scope_drift')
+        self.assertFalse(any(item.evidence == 'rush' for item in result.analysis.findings))

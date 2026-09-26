@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import shutil
 import tempfile
+from copy import deepcopy
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -44,6 +45,23 @@ class Sandbox:
 
     def cleanup(self) -> None:
         shutil.rmtree(self.root, ignore_errors=True)
+
+    def isolated_copy(self) -> 'Sandbox':
+        """Return an in-memory copy used for a cancellable tool attempt."""
+        return Sandbox(
+            root=self.root,
+            projects=deepcopy(self.projects),
+            requests=deepcopy(self.requests),
+            analyses=deepcopy(self.analyses),
+            drafts=deepcopy(self.drafts),
+            operations=deepcopy(self.operations),
+        )
+
+    def commit_from(self, candidate: 'Sandbox') -> None:
+        """Commit validated tool state only after its attempt completed in time."""
+        self.analyses = candidate.analyses
+        self.drafts = candidate.drafts
+        self.operations = candidate.operations
 
     def project(self, project_id: str) -> ProjectRecord:
         item = self.projects.get(project_id)

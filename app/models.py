@@ -1,5 +1,5 @@
 """HTTP contracts and Freelance Scope Drift Monitor domain contracts."""
-from typing import Literal
+from typing import Any, Literal
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -70,7 +70,17 @@ class AgentDecision(Contract):
             raise ValueError('call_tool decisions require a tool')
         if self.status != 'call_tool' and self.tool is not None:
             raise ValueError('only call_tool decisions may select a tool')
+        if self.status != 'call_tool' and self.arguments:
+            raise ValueError('terminal decisions must not contain tool arguments')
         return self
+
+
+class FinishInput(Contract):
+    reason: str = Field(min_length=1, max_length=500, description='Briefly explain why the requested task is complete.')
+
+
+class TerminalInput(FinishInput):
+    user_message: str = Field(min_length=1, max_length=1000, description='A concise clarification question or boundary explanation for the user.')
 
 
 class Metrics(Contract):
@@ -79,6 +89,23 @@ class Metrics(Contract):
     input_tokens: int | None = Field(default=None, ge=0)
     output_tokens: int | None = Field(default=None, ge=0)
     estimated_cost_usd: float | None = Field(default=None, ge=0)
+
+
+class AgentRunState(Contract):
+    """Validated state carried only within one bounded agent run."""
+    goal: str = Field(min_length=1, max_length=12000)
+    current_task: str = Field(min_length=1, max_length=10000)
+    requested_operations: list[Literal['list', 'inspect', 'analyze', 'draft']] = Field(default_factory=list, max_length=4)
+    requested_project_id: str | None = Field(default=None, pattern=r'^project-\d{3}$')
+    requested_request_id: str | None = Field(default=None, pattern=r'^request-\d{3}$')
+    step: int = Field(default=0, ge=0, le=6)
+    resolved_project_id: str | None = Field(default=None, pattern=r'^project-\d{3}$')
+    resolved_request_id: str | None = Field(default=None, pattern=r'^request-\d{3}$')
+    pending_clarification: str | None = Field(default=None, max_length=500)
+    completed_actions: list[ToolName] = Field(default_factory=list, max_length=6)
+    observations: list[dict[str, Any]] = Field(default_factory=list, max_length=6)
+    provider_usage: dict[str, float | int | None] = Field(default_factory=dict)
+    deadline_monotonic: float = Field(gt=0)
 
 
 class ArenaResponse(Contract):
@@ -119,7 +146,7 @@ class ClientRequestRecord(Contract):
 
 
 class ScopeFinding(Contract):
-    category: Literal['deliverable_match', 'explicit_exclusion', 'revision_limit', 'missing_evidence']
+    category: Literal['deliverable_match', 'explicit_exclusion', 'revision_limit', 'missing_evidence', 'conflicting_evidence']
     evidence: str = Field(min_length=1, max_length=300)
     explanation: str = Field(min_length=1, max_length=500)
 

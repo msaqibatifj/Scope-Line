@@ -1,0 +1,16 @@
+student-agent/
+.env
+.env.*
+!.env.example
+.venv/
+__pycache__/
+*.pyc
+.git/
+.pytest_cache/
+.mypy_cache/
+dist/
+*.zip
+*.pdf
+AUDIT.md
+IMPLEMENTATION_PLAN.md
+release/__pycache__/

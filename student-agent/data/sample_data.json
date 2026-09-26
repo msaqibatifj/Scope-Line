@@ -1,0 +1,15 @@
+{
+  "note": "Safe sandbox examples for PacketPilot. These are fictional and text-only.",
+  "sample_packets": [
+    {
+      "name": "Merit Scholarship Example",
+      "requirements": "CGPA at least 3.5, transcript, CNIC copy, recommendation letter, personal statement. Deadline October 10, 2026.",
+      "applicant": "CGPA 3.7. Provided transcript, CNIC copy, personal statement. Recommendation letter is missing."
+    },
+    {
+      "name": "Need Grant Example",
+      "requirements": "Minimum CGPA 2.8, transcript, CNIC copy, income certificate, enrollment certificate. Deadline November 1, 2026.",
+      "applicant": "CGPA 3.1. Provided transcript, CNIC copy, income certificate, enrollment certificate."
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "full_name": "PENDING_USER_INPUT",
+  "roll_number": "i230769",
+  "class_section": "E_A01",
+  "university_email": "PENDING_USER_INPUT",
+  "github_username": "PENDING_USER_INPUT",
+  "github_repository_url": "https://pending-github-access.invalid/PENDING_USER_INPUT/scopeline",
+  "final_commit_hash": "UNCOMMITTED_WORKSPACE_ON_TOP_OF_f5e0fb9d6dbdeb77b9b9cdfaf458c57c53142512",
+  "interface_url": "https://scopeline-i230769.vercel.app/",
+  "health_url": "https://scopeline-i230769.vercel.app/health",
+  "arena_url": "https://scopeline-i230769.vercel.app/arena/run",
+  "manifest_url": "https://scopeline-i230769.vercel.app/arena/manifest",
+  "docs_url": "https://scopeline-i230769.vercel.app/docs",
+  "hosting_provider": "Vercel",
+  "default_model_provider": "local-scripted on Vercel public deployment; Gemini 3.1 Flash-Lite verified locally as live comparison candidate",
+  "other_models": "gemini-3.5-flash-lite; groq/qwen3.8-27b backup; local-scripted test baseline",
+  "cold_start_limitations": "Vercel/serverless restarts erase in-memory chats and drafts; production is configured without API secrets until explicit secret export is approved.",
+  "instructor_access_status": "PENDING_USER_CONFIRMATION",
+  "example_input": "Analyze request-001 for project-001 and draft a change request.",
+  "expected_result": "Returns evidence-backed scope drift and a private review-only draft."
+}

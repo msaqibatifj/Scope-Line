@@ -1,0 +1,21 @@
+{
+  "full_name": "",
+  "roll_number": "",
+  "class_section": "",
+  "university_email": "",
+  "github_username": "",
+  "github_repository_url": "",
+  "final_commit_hash": "",
+  "interface_url": "",
+  "health_url": "",
+  "arena_url": "",
+  "manifest_url": "",
+  "docs_url": "",
+  "hosting_provider": "Render",
+  "default_model_provider": "",
+  "other_models": "",
+  "cold_start_limitations": "In-memory chats and drafts are lost when the free service restarts.",
+  "instructor_access_status": "",
+  "example_input": "Analyze request-001 for project-001 and draft a change request.",
+  "expected_result": "Returns evidence-backed scope drift and a private review-only draft."
+}

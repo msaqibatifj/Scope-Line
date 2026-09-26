@@ -42,15 +42,15 @@ core fields as the available implementation.
 
 The PDF states that the model must influence at least one meaningful execution
 decision. `local-scripted` is deterministic application policy and cannot satisfy
-that requirement by itself. The deployment default is therefore
-`nvidia/nemotron-3-ultra-550b-a55b:free` through OpenRouter. The local policy is a
-bounded, observable fallback only when the live provider times out, is rate
-limited, has a network failure, or returns a transient server error. Fallback use
-is recorded as `provider_fallback`.
+that requirement by itself. The current deployment default is Gemini 3.1 Flash-Lite through the Gemini API,
+with Gemini 3.5 Flash-Lite as the other comparison candidate and Groq Qwen 3.8
+27B as the sole runtime backup. The default is provisional pending comparison. The local
+policy is selectable for offline tests; automatic local fallback is disabled.
+Provider changes are recorded as `provider_fallback` and share run budgets.
 
-The deployment-default configuration was exercised locally on 2026-09-26 while
-OpenRouter returned HTTP 429. `/arena/run` retained the common response contract,
-recorded the fallback, completed the tool loop, and passed all ten public cases.
+The original OpenRouter deployment-default configuration was exercised locally
+while OpenRouter returned HTTP 429, completing ten cases through local fallback.
+That historical result is not evidence for Gemini or Groq. The latest live-only Gemini retry records 9/10 for 3.1 and 9/10 for 3.5, with no fallback runs. The remaining 3.1 failure was a provider 503; the remaining 3.5 failure was a controller rejection of an unsupported `list_projects` action during a clarification case. See `evaluation/gemini_comparison.md`.
 
 ## Remaining external confirmation
 

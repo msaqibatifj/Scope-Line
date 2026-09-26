@@ -32,6 +32,10 @@ async function init(){
       option.selected=model===data.default;
       $('model').append(option);
     }
+    const readiness=data.readiness||{};
+    $('model-readiness').textContent=readiness.ready
+      ? 'Live model ready: '+readiness.configured_default
+      : 'Degraded mode: '+(readiness.reason||'live model unavailable')+(readiness.fallback_enabled ? '. Fallback: '+(readiness.fallback_model||'local-scripted') : '. Fallback disabled.');
   }catch(error){
     $('status').textContent=error.message;
     $('send').disabled=true;
@@ -82,6 +86,8 @@ $('chat').onsubmit=async event=>{
     count+=2;
     $('memory').textContent=count+' messages exchanged; server retains at most 12';
     $('status').textContent=data.status+' | '+data.stop_reason+' | '+data.steps+' steps';
+    const fallback=data.events.find(event=>event.event==='provider_fallback');
+    if(fallback)$('status').textContent+=' | degraded: '+fallback.reason;
     $('trace').textContent=JSON.stringify(data.tool_calls,null,2);
     $('observations').textContent=JSON.stringify(data.events,null,2);
     $('task').value='';

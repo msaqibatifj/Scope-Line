@@ -1,7 +1,7 @@
-fastapi>=0.115,<1
-uvicorn>=0.34,<1
-pydantic>=2.12,<3
-pydantic-settings>=2.10,<3
-langchain-core>=1,<2
-httpx>=0.28,<1
-# OpenRouter uses its OpenAI-compatible HTTPS endpoint through httpx.
+fastapi==0.141.1
+uvicorn==0.53.0
+pydantic==2.13.5
+pydantic-settings==2.15.0
+langchain-core==1.6.3
+httpx==0.28.1
+# Gemini, Groq and legacy OpenRouter use compatible HTTPS endpoints through httpx.

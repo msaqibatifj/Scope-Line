@@ -10,16 +10,28 @@ services:
       - key: PYTHON_VERSION
         value: 3.12.10
       - key: MODEL_PROVIDER
-        value: openrouter
+        value: gemini
       - key: MODEL_NAME
-        value: nvidia/nemotron-3-ultra-550b-a55b:free
+        value: gemini-3.1-flash-lite
       - key: ALLOWED_MODELS
-        value: local-scripted,nvidia/nemotron-3-ultra-550b-a55b:free,cohere/north-mini-code:free
+        value: local-scripted,gemini-3.1-flash-lite,gemini-3.5-flash-lite,groq/qwen3.8-27b
       - key: ENABLE_LIVE_MODELS
         value: true
-      - key: OPENROUTER_API_KEY
+      - key: GEMINI_API_KEY
         sync: false
       - key: SPEND_LIMIT_USD
         value: 0
       - key: MAX_LIVE_REQUESTS_PER_MINUTE
+        value: 10
+      - key: GROQ_API_KEY
+        sync: false
+      - key: FALLBACK_MODELS
+        value: groq/qwen3.8-27b
+      - key: ALLOW_MODEL_FALLBACK
+        value: true
+      - key: ALLOW_LOCAL_FALLBACK
+        value: false
+      - key: DIRECT_API_FREE_TIER
+        value: true
+      - key: MODEL_TIMEOUT_SECONDS
         value: 10

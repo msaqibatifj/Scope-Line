@@ -1,4 +1,9 @@
-# Model Comparison Evidence
+# Historical OpenRouter Model Comparison Evidence
+
+ScopeLine provisionally defaults to Gemini 3.1 Flash-Lite, compares it against
+Gemini 3.5 Flash-Lite, and uses Groq Qwen 3.8 27B as its sole runtime backup. The results below predate that switch and are not
+evidence for the current models. The current Gemini evidence is recorded separately in `evaluation/gemini_comparison.md`.
+
 
 ## Status
 
@@ -38,7 +43,7 @@ output tokens, $0 reported cost). North still timed out. A complete post-fix rer
 was attempted, but OpenRouter returned HTTP 429 for the free endpoints. That run is
 preserved in `evaluation/model_comparison_rate_limited_results.json`.
 
-The deployment default is Nemotron because the course requires a model to influence
+At the time of this experiment, the deployment default was Nemotron because the course requires a model to influence
 meaningful execution decisions and it completed the post-fix tool loop. The local
 policy is retained only as a traced fallback for transient provider failure; North
 remains the secondary comparison model. Neither free endpoint should handle

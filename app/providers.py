@@ -1,4 +1,4 @@
-"""OpenRouter model registry and preflight controls."""
+"""Model routing, provider credentials, fallback order and usage controls."""
 from __future__ import annotations
 
 from collections import deque
@@ -27,7 +27,7 @@ class LiveUsageGate:
             self.started_at.popleft()
         if len(self.started_at) >= settings.max_live_requests_per_minute:
             return False, 'live_rate_limit_reached'
-        if not model_name.endswith(':free') and self.total_cost_usd >= settings.spend_limit_usd:
+        if not is_free_model(model_name) and self.total_cost_usd >= settings.spend_limit_usd:
             return False, 'spend_limit_reached'
         self.started_at.append(now)
         return True, 'admitted'
@@ -47,22 +47,72 @@ def allowed_model_names() -> list[str]:
 
 
 def available_model_names() -> list[str]:
-    # Step 2: hide live models until OpenRouter and the spend guard are enabled.
-    names = [name for name in allowed_model_names() if name == LOCAL_MODEL or live_model_enabled(name)]
+    # Step 2: hide live models until their credentials and billing policy are configured.
+    names = [name for name in allowed_model_names() if model_preflight(name)[0]]
     return names or [LOCAL_MODEL]
+
+
+def model_readiness() -> dict[str, object]:
+    """Public, secret-free explanation of which configured model can run now."""
+    configured = settings.model_name.strip() or LOCAL_MODEL
+    ok, reason = model_preflight(configured)
+    return {
+        'configured_default': configured,
+        'ready': ok,
+        'reason': reason,
+        'live_enabled': live_model_enabled(configured),
+        'fallback_models': fallback_model_names(configured),
+        'model_fallback_enabled': settings.allow_model_fallback,
+        'fallback_model': LOCAL_MODEL,
+        'fallback_enabled': settings.allow_local_fallback,
+    }
 
 
 def default_model_name() -> str:
     configured = settings.model_name.strip() or LOCAL_MODEL
-    return configured if configured in available_model_names() else LOCAL_MODEL
+    return configured if model_preflight(configured)[0] or not settings.allow_local_fallback else LOCAL_MODEL
+
+
+def provider_name(model_name: str) -> str:
+    if model_name == LOCAL_MODEL:
+        return 'local'
+    if model_name.startswith('gemini-'):
+        return 'gemini'
+    if model_name.startswith('groq/'):
+        return 'groq'
+    return 'openrouter' if settings.model_provider.lower().strip() == 'openrouter' else 'unconfigured'
+
+
+def provider_connection(model_name: str) -> tuple[str, str, str]:
+    """Return endpoint, credential and provider-native ID; never expose this publicly."""
+    provider = provider_name(model_name)
+    if provider == 'gemini':
+        return settings.gemini_base_url, settings.gemini_api_key, model_name
+    if provider == 'groq':
+        return settings.groq_base_url, settings.groq_api_key, 'qwen/' + model_name.removeprefix('groq/')
+    if provider == 'openrouter':
+        return settings.openrouter_base_url, settings.openrouter_api_key, model_name
+    return '', '', model_name
+
+
+def is_free_model(model_name: str) -> bool:
+    # A free-tier declaration requires an account without paid billing enabled.
+    return model_name.endswith(':free') or (
+        provider_name(model_name) in ('gemini', 'groq') and settings.direct_api_free_tier
+    )
 
 
 def live_model_enabled(model_name: str) -> bool:
-    if not settings.enable_live_models:
-        return False
-    if model_name == LOCAL_MODEL:
-        return True
-    return settings.model_provider.lower().strip() == 'openrouter' and bool(openrouter_api_key())
+    return bool(settings.enable_live_models and provider_connection(model_name)[1])
+
+
+def fallback_model_names(model_name: str) -> list[str]:
+    if not settings.allow_model_fallback:
+        return []
+    # Only move forward through the configured order; never cycle back to a primary.
+    order = list(dict.fromkeys(name.strip() for name in settings.fallback_models.split(',') if name.strip()))
+    candidates = order[order.index(model_name) + 1:] if model_name in order else order
+    return [name for name in candidates if name != LOCAL_MODEL and model_preflight(name)[0]]
 
 
 def model_preflight(model_name: str) -> tuple[bool, str]:
@@ -71,7 +121,7 @@ def model_preflight(model_name: str) -> tuple[bool, str]:
         return False, 'model_not_allowed'
     if model_name == LOCAL_MODEL:
         return True, 'local_model'
-    if not model_name.endswith(':free') and settings.spend_limit_usd <= 0:
+    if not is_free_model(model_name) and settings.spend_limit_usd <= 0:
         return False, 'paid_models_disabled_by_spend_limit'
     if not live_model_enabled(model_name):
         return False, 'live_model_not_configured'
@@ -83,11 +133,13 @@ def openrouter_api_key() -> str:
 
 
 def is_openrouter_model(model_name: str) -> bool:
-    return settings.model_provider.lower().strip() == 'openrouter' and model_name != LOCAL_MODEL
+    return provider_name(model_name) == 'openrouter'
 
 
 def estimate_cost_usd(model_name: str, input_tokens: int | None, output_tokens: int | None) -> float | None:
-    # OpenRouter's response cost is preferred; configured free endpoints fall back to zero.
+    if input_tokens is not None and output_tokens is not None and is_free_model(model_name):
+        return 0.0
+    # Preserve historical OpenRouter cost handling; unknown paid rates remain unavailable.
     prices = {
         'nvidia/nemotron-3-ultra-550b-a55b:free': (0.0, 0.0),
         'cohere/north-mini-code:free': (0.0, 0.0),

@@ -1,26 +1,24 @@
-# Submission summary
-Replace i221234 with your roll number. Copy these details into i221234_submission.pdf.
+# ScopeLine submission summary
 
-- Full name:
-- Roll number:
-- Class / section:
-- University email:
-- GitHub username:
-- Agent name and domain: ScopeLine - Freelance Scope Drift Monitor
-- Private GitHub repository URL:
-- Final source commit hash:
-- Working public agent interface URL:
-- GET /health URL:
-- POST /arena/run URL:
-- GET /arena/manifest URL:
-- API documentation URL:
-- Hosting provider:
-- Default model and provider: nvidia/nemotron-3-ultra-550b-a55b:free through OpenRouter
-- Other available models: nvidia/nemotron-3-ultra-550b-a55b:free, cohere/north-mini-code:free
-- Example input and expected behavior: "Analyze request-001 for project-001 and draft a change request" detects explicit scope drift and creates a private review-only draft.
-- Cold-start / restart limitations:
-- Instructor repository invitation status:
-- Public test result file: evaluation/public_results.json
-
-Submit i221234.zip and i221234_submission.pdf in Google Classroom, then click Turn in.
-The ZIP must contain one i221234/ project folder including this file. See assignment Section 19.
+- Full name: PENDING_USER_INPUT
+- Roll number: i230769
+- Class / section: E_A01
+- University email: PENDING_USER_INPUT
+- GitHub username: PENDING_USER_INPUT
+- Agent name: ScopeLine
+- Domain: Freelance scope drift monitoring
+- GitHub repository URL: https://pending-github-access.invalid/PENDING_USER_INPUT/scopeline
+- Final commit hash: UNCOMMITTED_WORKSPACE_ON_TOP_OF_f5e0fb9d6dbdeb77b9b9cdfaf458c57c53142512
+- Working agent interface: https://scopeline-i230769.vercel.app/
+- Health endpoint (GET): https://scopeline-i230769.vercel.app/health
+- Arena endpoint (POST): https://scopeline-i230769.vercel.app/arena/run
+- Manifest endpoint (GET): https://scopeline-i230769.vercel.app/arena/manifest
+- API documentation: https://scopeline-i230769.vercel.app/docs
+- Hosting provider: Vercel
+- Default model / provider: local-scripted on Vercel public deployment; Gemini 3.1 Flash-Lite verified locally as live comparison candidate
+- Other available models: gemini-3.5-flash-lite; groq/qwen3.8-27b backup; local-scripted test baseline
+- Example input: Analyze request-001 for project-001 and draft a change request.
+- Expected result: Returns evidence-backed scope drift and a private review-only draft.
+- Cold-start / restart limitations: Vercel/serverless restarts erase in-memory chats and drafts; production is configured without API secrets until explicit secret export is approved.
+- Repository access: PENDING_USER_CONFIRMATION
+- Public test results: evaluation/public_results.json

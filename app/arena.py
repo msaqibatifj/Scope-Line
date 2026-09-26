@@ -4,7 +4,7 @@ import logging
 from time import perf_counter
 from app.agent import run_agent
 from app.config import settings
-from app.models import ArenaResponse
+from app.models import ArenaResponse, Metrics
 from app.sandbox import Sandbox
 log = logging.getLogger('arena')
 async def execute(request, history=None, model='unconfigured', sandbox=None):
@@ -12,15 +12,28 @@ async def execute(request, history=None, model='unconfigured', sandbox=None):
     request = request.model_copy(deep=True)
     request.arena_config.max_steps = min(request.arena_config.max_steps, settings.max_steps)
     owns_sandbox = sandbox is None
+    progress = {'steps': 0, 'tool_calls': [], 'errors': [], 'events': [], 'usage': {}}
     try:
         if owns_sandbox:
             sandbox = Sandbox.create()
         async with asyncio.timeout(settings.run_timeout_seconds):
-            result = await run_agent(request, history or [], model, sandbox=sandbox)
+            result = await run_agent(request, history or [], model, sandbox=sandbox, progress=progress)
             result = ArenaResponse.model_validate(result)
     except TimeoutError:
+        usage = progress.get('usage') or {}
         result = ArenaResponse(request_id=request.request_id, status='budget_exceeded',
-            final_response='The run timed out.', stop_reason='time_budget_reached')
+            final_response='The run timed out after preserving completed trace evidence.',
+            stop_reason='time_budget_reached',
+            steps=min(int(progress.get('steps') or 0), request.arena_config.max_steps),
+            tool_calls=progress.get('tool_calls') or [],
+            errors=progress.get('errors') or [],
+            events=progress.get('events') or [],
+            metrics=Metrics(
+                model_calls=min(int(progress.get('steps') or 0), request.arena_config.max_steps),
+                input_tokens=usage.get('input_tokens'),
+                output_tokens=usage.get('output_tokens'),
+                estimated_cost_usd=usage.get('estimated_cost_usd'),
+            ))
     except Exception:
         result = ArenaResponse(request_id=request.request_id, status='failed',
             final_response='The run stopped due to an internal error.', stop_reason='internal_error')

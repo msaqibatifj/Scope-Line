@@ -11,6 +11,7 @@ async def lifespan(app):
     app.state.memory = Memory()
     app.state.memory.ttl_seconds = settings.session_ttl_seconds
     app.state.busy = set()
+    app.state.active_runs = set()
     app.state.live_usage = LiveUsageGate()
     async def reap_sessions():
         while True:

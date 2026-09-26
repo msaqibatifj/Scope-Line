@@ -1,0 +1,25 @@
+{
+  "arena_version": "0.1",
+  "agent_name": "PacketPilot",
+  "domain": "Scholarship and application packet readiness",
+  "description": "Text-only bounded agent that checks scholarship/application requirements, eligibility clues, missing documents, deadline risk, prompt-injection attempts in untrusted context, and safe next steps without submitting anything.",
+  "endpoint": "/arena/run",
+  "health_endpoint": "/health",
+  "implementation": "packetpilot-local-contract-v1",
+  "fault_types": [
+    "none",
+    "tool_timeout",
+    "malformed_tool_output",
+    "invalid_agent_decision"
+  ],
+  "limits": {
+    "max_steps": 6,
+    "max_tool_retries": 2,
+    "run_timeout_seconds": 40,
+    "max_response_bytes": 50000
+  },
+  "autonomy_boundary": {
+    "allowed": ["read user-provided text", "check sandbox packet readiness", "draft checklists", "identify missing information"],
+    "requires_approval_or_blocked": ["submit applications", "send email", "upload documents", "pay fees", "alter real accounts"]
+  }
+}
