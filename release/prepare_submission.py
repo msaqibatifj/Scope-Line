@@ -7,8 +7,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import zipfile
 from pathlib import Path
+from urllib.parse import urlparse
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -27,11 +29,21 @@ def load_metadata(path: Path) -> dict[str, str]:
     missing = [key for key in REQUIRED if not str(values.get(key, '')).strip()]
     if missing:
         raise SystemExit('Missing required metadata: ' + ', '.join(missing))
-    roll = str(values['roll_number']).strip().lower()
-    if not roll.replace('_', '').isalnum() or ' ' in roll:
-        raise SystemExit('roll_number must be lowercase letters/numbers/underscores only')
+    values = {key: str(value).strip() for key, value in values.items()}
+    placeholders = [key for key, value in values.items() if 'PENDING_' in value or '.invalid' in value]
+    if placeholders:
+        raise SystemExit('Replace placeholder metadata: ' + ', '.join(placeholders))
+    roll = values['roll_number'].lower()
+    if not re.fullmatch(r'[a-z0-9]+', roll):
+        raise SystemExit('roll_number must contain lowercase letters and numbers only')
+    if not re.fullmatch(r'[0-9a-f]{40,64}', values['final_commit_hash'], re.IGNORECASE):
+        raise SystemExit('final_commit_hash must be a full Git commit hash')
+    for field in URL_FIELDS:
+        parsed = urlparse(values[field])
+        if parsed.scheme != 'https' or not parsed.netloc:
+            raise SystemExit(f'{field} must be a public HTTPS URL')
     values['roll_number'] = roll
-    return {key: str(value).strip() for key, value in values.items()}
+    return values
 
 
 def summary(metadata: dict[str, str]) -> str:
@@ -55,6 +67,9 @@ def summary(metadata: dict[str, str]) -> str:
 
 
 def pdf_escape(value: str) -> str:
+    # Built-in Helvetica is WinAnsi only; replace unsupported glyphs rather than
+    # emitting an invalid literal string. URLs remain ASCII and are unaffected.
+    value = value.encode('cp1252', 'replace').decode('cp1252')
     return value.replace('\\', '\\\\').replace('(', '\\(').replace(')', '\\)')
 
 
@@ -68,10 +83,16 @@ def linked_pdf(path: Path, metadata: dict[str, str]) -> None:
         content.append(f'({pdf_escape(line[:150])}) Tj')
     content.append('ET')
     annotations = []
+    row_by_field = {}
+    for index, line in enumerate(lines):
+        for field in URL_FIELDS:
+            if metadata[field] in line:
+                row_by_field[field] = index
     for field in URL_FIELDS:
         url = metadata[field]
-        row = lines.index(next(line for line in lines if url in line))
-        annotations.append(f'<< /Type /Annot /Subtype /Link /Rect [45 {735 - row * 25} 550 {750 - row * 25}] /Border [0 0 0] /A << /S /URI /URI ({pdf_escape(url)}) >> >>')
+        row = row_by_field[field]
+        baseline = 760 - row * 25
+        annotations.append(f'<< /Type /Annot /Subtype /Link /Rect [45 {baseline - 4} 550 {baseline + 11}] /Border [0 0 0] /A << /S /URI /URI ({pdf_escape(url)}) >> >>')
     annotation_ids = range(6, 6 + len(annotations))
     annots = ' '.join(f'{item} 0 R' for item in annotation_ids)
     stream = '\n'.join(content)
@@ -103,7 +124,9 @@ def build_zip(path: Path, roll_number: str) -> None:
                 archive.write(source, Path(roll_number) / source.name)
             elif source.is_dir():
                 for child in source.rglob('*'):
-                    if child.is_file() and '__pycache__' not in child.parts and child.suffix != '.pyc':
+                    blocked_parts = {'__pycache__', '.git', '.venv', 'venv', 'node_modules', '.pytest_cache'}
+                    blocked_names = {'.env', '.env.local'}
+                    if child.is_file() and not (blocked_parts & set(child.parts)) and child.name not in blocked_names and child.suffix not in {'.pyc', '.zip', '.pdf', '.log'}:
                         archive.write(child, Path(roll_number) / child.relative_to(ROOT))
 
 

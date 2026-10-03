@@ -136,3 +136,21 @@ class ScopeDriftToolTests(unittest.TestCase):
         ))
         self.assertNotEqual(result.analysis.classification, 'scope_drift')
         self.assertFalse(any(item.evidence == 'rush' for item in result.analysis.findings))
+
+    def test_written_and_hour_duration_limits_are_scope_drift(self):
+        photo = self.tools.analyze_scope_drift(AnalyzeScopeDriftInput(
+            project_id='project-003', request_text='Deliver twenty five product photos on a neutral background.'
+        ))
+        duration = self.tools.analyze_scope_drift(AnalyzeScopeDriftInput(
+            project_id='project-002', request_text='Mastering for four episodes of 2 hours each.'
+        ))
+        self.assertEqual(photo.analysis.classification, 'scope_drift')
+        self.assertEqual(duration.analysis.classification, 'scope_drift')
+
+    def test_unmatched_material_work_is_not_approved(self):
+        result = self.tools.analyze_scope_drift(AnalyzeScopeDriftInput(
+            project_id='project-003',
+            request_text='Deliver twenty product photos on a neutral background and build a custom mobile app.',
+        ))
+        self.assertEqual(result.analysis.classification, 'scope_drift')
+        self.assertTrue(any(item.category == 'missing_evidence' for item in result.analysis.findings))

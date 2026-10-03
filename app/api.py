@@ -9,6 +9,15 @@ from app.providers import LOCAL_MODEL, available_model_names, default_model_name
 router = APIRouter()
 @router.get('/')
 def index(): return FileResponse(ROOT / 'app/static/index.html')
+
+
+# Relative asset paths also let the standalone HTML preview work from file://.
+@router.get('/style.css', include_in_schema=False)
+def stylesheet(): return FileResponse(ROOT / 'app/static/style.css', media_type='text/css')
+
+
+@router.get('/app.js', include_in_schema=False)
+def script(): return FileResponse(ROOT / 'app/static/app.js', media_type='application/javascript')
 @router.get('/health')
 def health(): return {'status': 'ok', 'implementation': 'scopeline-v1'}
 @router.get('/arena/manifest')

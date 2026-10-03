@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Callable
 
 from app.models import (
@@ -79,13 +80,21 @@ class ScopeDriftTools:
                 self.sandbox.analyses[analysis.analysis_id] = analysis
                 return ToolResult(ok=True, projects=[project], analysis=analysis)
 
-            findings.extend(_quantity_findings(args.project_id, request_text))
+            findings.extend(_agreement_constraint_findings(project, request_text))
 
             for signal in matched_outside[:5]:
                 findings.append(ScopeFinding(
                     category='explicit_exclusion',
                     evidence=signal,
                     explanation='The request matches work explicitly excluded from the agreement.',
+                ))
+
+            # A known included phrase does not establish that every requested work item is covered.
+            if matched_within and not matched_outside and _contains_unmatched_deliverable(request_text, within_signals, outside_signals):
+                findings.append(ScopeFinding(
+                    category='missing_evidence',
+                    evidence=request_text[:300],
+                    explanation='At least one requested deliverable has no matching agreement evidence.',
                 ))
 
             revision_words = ('revision', 'change', 'update', 'make it', 'replace')
@@ -222,31 +231,35 @@ def re_search(pattern: str, text: str):
     return re.search(pattern, text, flags=re.IGNORECASE)
 
 
-def _quantity_findings(project_id: str, request_text: str) -> list[ScopeFinding]:
+def _agreement_constraint_findings(project, request_text: str) -> list[ScopeFinding]:
     lowered = request_text.lower().replace('-', ' ')
     findings: list[ScopeFinding] = []
-    if project_id == 'project-003' and any(term in lowered for term in ('photo', 'photograph', 'image')):
+    deliverables = ' '.join(project.agreed_deliverables).lower()
+    if any(term in lowered for term in ('photo', 'photograph', 'image')):
         count = _nearby_number(lowered, ('photo', 'photos', 'photograph', 'photographs', 'image', 'images'))
-        if count is not None and count > 20:
+        limit = _nearby_number(deliverables, ('photo', 'photos', 'photograph', 'photographs', 'image', 'images'))
+        if count is not None and limit is not None and count > limit:
             findings.append(ScopeFinding(
                 category='explicit_exclusion',
-                evidence=f'{count:g} requested photos exceeds 20 agreed photos',
-                explanation='The agreement covers twenty edited product photographs; the requested quantity exceeds that limit.',
+                evidence=f'{count:g} requested photos exceeds {limit:g} agreed photos',
+                explanation='The requested quantity exceeds the agreement limit.',
             ))
-    if project_id == 'project-002' and any(term in lowered for term in ('episode', 'episodes', 'mastering', 'audio edit')):
+    if any(term in lowered for term in ('episode', 'episodes', 'mastering', 'audio edit')):
         episodes = _nearby_number(lowered, ('episode', 'episodes'))
         minutes = _duration_minutes(lowered)
-        if episodes is not None and episodes > 4:
+        episode_limit = _nearby_number(deliverables, ('episode', 'episodes'))
+        minute_limit = _duration_minutes(deliverables)
+        if episodes is not None and episode_limit is not None and episodes > episode_limit:
             findings.append(ScopeFinding(
                 category='explicit_exclusion',
-                evidence=f'{episodes:g} requested episodes exceeds 4 agreed episodes',
-                explanation='The agreement covers editing and mastering for four episodes.',
+                evidence=f'{episodes:g} requested episodes exceeds {episode_limit:g} agreed episodes',
+                explanation='The requested episode count exceeds the agreement limit.',
             ))
-        if minutes is not None and minutes > 45:
+        if minutes is not None and minute_limit is not None and minutes > minute_limit:
             findings.append(ScopeFinding(
                 category='explicit_exclusion',
-                evidence=f'{minutes:g} requested minutes exceeds 45 minutes per episode',
-                explanation='The agreement covers episodes up to 45 minutes each.',
+                evidence=f'{minutes:g} requested minutes exceeds {minute_limit:g} minutes per episode',
+                explanation='The requested episode duration exceeds the agreement limit.',
             ))
     return findings
 
@@ -254,18 +267,36 @@ def _quantity_findings(project_id: str, request_text: str) -> list[ScopeFinding]
 def _nearby_number(text: str, nouns: tuple[str, ...]) -> float | None:
     words = '|'.join(nouns)
     matches = [
-        re_search(rf'\b(\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|twenty|hundred)\b(?:\W+\w+){{0,3}}?\W+\b(?:{words})\b', text),
+        re_search(rf'\b(\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|twenty|hundred)(?:\s+(one|two|three|four|five|six|seven|eight|nine))?\b(?:\W+\w+){{0,3}}?\W+\b(?:{words})\b', text),
         re_search(rf'\b(?:{words})\b(?:\W+\w+){{0,3}}?\W+\b(\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|twenty|hundred)\b', text),
     ]
     for match in matches:
         if match:
-            return _number_value(match.group(1))
+            base = _number_value(match.group(1))
+            suffix = _number_value(match.group(2)) if match.lastindex and match.lastindex >= 2 and match.group(2) else 0
+            return base + suffix if base is not None else None
     return None
 
 
 def _duration_minutes(text: str) -> float | None:
-    match = re_search(r'\b(\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|twenty|hundred)\b\W*(?:min|mins|minute|minutes)\b', text)
-    return _number_value(match.group(1)) if match else None
+    match = re_search(r'\b(\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|twenty|hundred)\b\W*(?:min|mins|minute|minutes|hour|hours)\b', text)
+    if not match:
+        return None
+    value = _number_value(match.group(1))
+    return value * 60 if value is not None and re_search(r'\b(hour|hours)\b', match.group(0)) else value
+
+
+def _contains_unmatched_deliverable(request_text: str, within_signals: list[str], outside_signals: list[str]) -> bool:
+    clauses = re.split(r'\s+(?:and|plus|also)\s+|[;,]', request_text.lower())
+    material_terms = {'app', 'mobile', 'dashboard', 'api', 'integration', 'animation', 'video', 'clip', 'website', 'page', 'photograph', 'photo', 'episode', 'music', 'research', 'copywriting'}
+    for clause in clauses:
+        words = set(re.findall(r'[a-z]{4,}', clause))
+        if not words or not (words & material_terms):
+            continue
+        signals = ' '.join([*within_signals, *outside_signals])
+        if not any(word in signals for word in words):
+            return True
+    return False
 
 
 def _number_value(value: str) -> float | None:

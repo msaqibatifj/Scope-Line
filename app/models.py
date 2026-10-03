@@ -98,6 +98,7 @@ class AgentRunState(Contract):
     requested_operations: list[Literal['list', 'inspect', 'analyze', 'draft']] = Field(default_factory=list, max_length=4)
     requested_project_id: str | None = Field(default=None, pattern=r'^project-\d{3}$')
     requested_request_id: str | None = Field(default=None, pattern=r'^request-\d{3}$')
+    requested_request_text: str | None = Field(default=None, max_length=4000)
     step: int = Field(default=0, ge=0, le=6)
     resolved_project_id: str | None = Field(default=None, pattern=r'^project-\d{3}$')
     resolved_request_id: str | None = Field(default=None, pattern=r'^request-\d{3}$')

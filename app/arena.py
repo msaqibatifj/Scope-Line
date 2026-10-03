@@ -34,15 +34,27 @@ async def execute(request, history=None, model='unconfigured', sandbox=None):
                 output_tokens=usage.get('output_tokens'),
                 estimated_cost_usd=usage.get('estimated_cost_usd'),
             ))
-    except Exception:
+    except Exception as error:
+        usage = progress.get('usage') or {}
         result = ArenaResponse(request_id=request.request_id, status='failed',
-            final_response='The run stopped due to an internal error.', stop_reason='internal_error')
+            final_response='The run stopped due to an internal error.', stop_reason='internal_error',
+            steps=min(int(progress.get('steps') or 0), request.arena_config.max_steps),
+            tool_calls=progress.get('tool_calls') or [], errors=(progress.get('errors') or []) + [
+                {'type': 'internal_error', 'message': str(error)[:500] or type(error).__name__}
+            ], events=progress.get('events') or [], metrics=Metrics(
+                model_calls=min(int(progress.get('steps') or 0), request.arena_config.max_steps),
+                input_tokens=usage.get('input_tokens'), output_tokens=usage.get('output_tokens'),
+                estimated_cost_usd=usage.get('estimated_cost_usd'),
+            ))
     finally:
         if owns_sandbox and sandbox is not None:
             sandbox.cleanup()
     result.metrics.latency_ms = (perf_counter() - started) * 1000
     if len(result.model_dump_json().encode()) > 50000:
         result = ArenaResponse(request_id=request.request_id, status='failed',
-            final_response='Response exceeded the size limit.', stop_reason='response_too_large')
+            final_response='Response exceeded the size limit; reduce requested output or inspect the tool observations.',
+            stop_reason='response_too_large', steps=result.steps, tool_calls=result.tool_calls,
+            errors=result.errors + [{'type': 'response_size', 'message': 'Response exceeded 50,000 bytes.'}],
+            events=result.events, metrics=result.metrics)
     log.info('request=%s status=%s steps=%s', request.request_id, result.status, result.steps)
     return result

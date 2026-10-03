@@ -3,20 +3,29 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>ScopeLine</title>
-  <link rel="stylesheet" href="/static/style.css">
+  <title>ScopeLine | Scope drift review</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header>
-    <p class="eyebrow">FREELANCE OPERATIONS</p>
-    <h1>ScopeLine</h1>
-    <p>Catch scope drift before extra work becomes invisible work.</p>
-    <a href="/docs">API documentation</a>
+  <header class="hero">
+    <div class="brand-row">
+      <a class="brand" href="/" aria-label="ScopeLine home"><span class="brand-mark">S</span> ScopeLine</a>
+      <a class="docs-link" href="/docs">API documentation <span aria-hidden="true">↗</span></a>
+    </div>
+    <div class="hero-copy">
+      <p class="eyebrow">FREELANCE OPERATIONS</p>
+      <h1>Know what changed<br>before you say yes.</h1>
+      <p class="hero-summary">Compare a client request to the recorded agreement, see the evidence, and prepare a private change request when extra work is involved.</p>
+    </div>
+    <div class="trust-row" aria-label="ScopeLine safeguards">
+      <span>Agreement-backed evidence</span><span>Private drafts only</span><span>No client outreach</span>
+    </div>
   </header>
   <main>
-    <section class="workspace">
+    <section class="workspace" aria-label="Scope review workspace">
       <div class="workspace-bar">
         <div>
+          <p class="section-kicker">REVIEW SETUP</p>
           <label for="model">Decision model</label>
           <select id="model"></select>
           <p id="model-readiness" class="model-readiness">Checking model readiness…</p>
@@ -28,12 +37,22 @@
         <button id="context-tab" class="tab" type="button" role="tab" aria-selected="false" aria-controls="context-panel">Context</button>
       </div>
       <div id="chat-panel" role="tabpanel" aria-labelledby="chat-tab">
-        <div id="messages" aria-live="polite"></div>
+        <div id="messages" aria-live="polite">
+          <div class="empty-state">
+            <span class="empty-icon" aria-hidden="true">↗</span>
+            <div><strong>Start with a client request</strong><p>ScopeLine compares it against a selected project agreement.</p></div>
+          </div>
+        </div>
         <form id="chat">
           <label for="task">Project or client request</label>
           <textarea id="task" required maxlength="10000" placeholder="Analyze request-001 for project-001 and draft a change request."></textarea>
-          <button id="send">Review scope</button>
+          <div class="form-footer"><span>Use a project and request ID, or paste the client request.</span><button id="send">Review scope <span aria-hidden="true">→</span></button></div>
         </form>
+        <div class="quick-start" aria-label="Example tasks">
+          <span>Try an example</span>
+          <button class="example" type="button" data-task="Analyze request-001 for project-001 and draft a change request.">Review scope drift</button>
+          <button class="example" type="button" data-task="Inspect agreement for project-001">Inspect an agreement</button>
+        </div>
       </div>
       <div id="context-panel" role="tabpanel" aria-labelledby="context-tab" hidden>
         <div class="context-heading">
@@ -43,16 +62,14 @@
         <textarea id="external" maxlength="10000" placeholder="Paste the agreement, client message, brief, or project notes."></textarea>
       </div>
     </section>
-    <aside>
-      <h2>Evidence</h2>
-      <p id="memory">0 messages in this review</p>
-      <pre id="observations">No observations yet.</pre>
-      <h2>Current run</h2>
-      <p id="status" role="status">Idle</p>
-      <pre id="trace">No tool calls yet.</pre>
+    <aside aria-label="Review activity">
+      <div class="aside-heading"><div><p class="section-kicker">ACTIVITY</p><h2>Current run</h2></div><span id="run-dot" class="run-dot idle" aria-hidden="true"></span></div>
+      <p id="status" class="status-card" role="status">Ready for a new review</p>
+      <div class="evidence-block"><h3>Tool trace</h3><pre id="trace">No tool calls yet.</pre></div>
+      <div class="evidence-block"><div class="evidence-title"><h3>Evidence</h3><p id="memory">0 messages</p></div><pre id="observations">No observations yet.</pre></div>
     </aside>
   </main>
-  <footer>Drafts stay private. ScopeLine never contacts clients, changes agreements, invoices, or charges anyone.</footer>
-  <script src="/static/app.js"></script>
+  <footer><span class="brand"><span class="brand-mark">S</span> ScopeLine</span><p>Drafts stay private. ScopeLine never contacts clients, changes agreements, invoices, or charges anyone.</p></footer>
+  <script src="app.js"></script>
 </body>
 </html>

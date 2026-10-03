@@ -14,6 +14,8 @@ from typing import Any
 from uuid import uuid4
 
 import httpx
+from pydantic import ValidationError
+from app.models import ArenaResponse
 
 
 ROOT = Path(__file__).resolve().parent
@@ -54,31 +56,12 @@ def expected_checks(case: dict[str, Any], result: dict[str, Any]) -> tuple[bool,
 
 
 def contract_is_valid(result: dict[str, Any]) -> bool:
-    # Step 2: check the common Arena response shape returned to evaluators.
-    required = {'arena_version', 'request_id', 'status', 'final_response', 'steps', 'stop_reason', 'tool_calls', 'errors', 'events', 'metrics'}
-    if not required.issubset(result):
+    # Validate the same typed response contract returned by the application.
+    try:
+        ArenaResponse.model_validate(result, strict=True)
+        return True
+    except ValidationError:
         return False
-    steps = result.get('steps')
-    if not isinstance(steps, int) or isinstance(steps, bool) or not 0 <= steps <= 6:
-        return False
-    if not isinstance(result.get('final_response'), str) or not result['final_response']:
-        return False
-    if not isinstance(result.get('tool_calls'), list) or not isinstance(result.get('errors'), list) or not isinstance(result.get('events'), list):
-        return False
-    metrics = result.get('metrics')
-    if not isinstance(metrics, dict):
-        return False
-    model_calls = metrics.get('model_calls')
-    if model_calls is not None and (not isinstance(model_calls, int) or isinstance(model_calls, bool) or model_calls < 0):
-        return False
-    for key in ('input_tokens', 'output_tokens'):
-        value = metrics.get(key)
-        if value is not None and (not isinstance(value, int) or isinstance(value, bool) or value < 0):
-            return False
-    cost = metrics.get('estimated_cost_usd')
-    if cost is not None and (not isinstance(cost, (int, float)) or isinstance(cost, bool) or cost < 0):
-        return False
-    return True
 
 
 def save(output: Path, models: list[str], records: list[dict[str, Any]]) -> None:
@@ -93,10 +76,14 @@ def save(output: Path, models: list[str], records: list[dict[str, Any]]) -> None
             'runs': len(rows),
             'task_successes': sum(bool(row.get('task_success')) for row in rows),
             'valid_contracts': sum(bool(row.get('contract_valid')) for row in rows),
+            'first_attempt_decision_valid': sum(bool(row.get('first_attempt_decision_valid')) for row in rows),
+            'repaired_decision_runs': sum(bool(row.get('decision_repaired')) for row in rows),
             'correct_actions': sum(bool(row.get('correct_action')) for row in rows),
             'average_latency_ms': round(sum(latencies) / len(latencies), 2) if latencies else None,
-            'input_tokens': sum(row.get('input_tokens') or 0 for row in rows),
-            'output_tokens': sum(row.get('output_tokens') or 0 for row in rows),
+            'input_tokens': sum(row['input_tokens'] for row in rows if row.get('input_tokens') is not None),
+            'input_token_known_runs': sum(row.get('input_tokens') is not None for row in rows),
+            'output_tokens': sum(row['output_tokens'] for row in rows if row.get('output_tokens') is not None),
+            'output_token_known_runs': sum(row.get('output_tokens') is not None for row in rows),
             'reported_cost_usd': round(sum(known_costs), 8) if len(known_costs) == len(rows) else None,
             'cost_known_runs': len(known_costs),
             'fallback_runs': sum(bool(row.get('fallback_used')) for row in rows),
@@ -191,6 +178,8 @@ def main() -> int:
                         tools=[call.get('tool') for call in result.get('tool_calls', [])],
                         error_types=[error.get('type') for error in result.get('errors', [])],
                         provider_errors=[error.get('message') for error in result.get('errors', [])],
+                        first_attempt_decision_valid=not any(event.get('event') == 'decision_rejected' and event.get('step') == 1 for event in result.get('events', [])),
+                        decision_repaired=any(event.get('event') == 'repair_requested' for event in result.get('events', [])),
                         response=result,
                         transport='in-process API / live provider HTTPS' if args.in_process else args.url,
                         fallback_used=any(event.get('event') == 'provider_fallback' for event in result.get('events', [])),

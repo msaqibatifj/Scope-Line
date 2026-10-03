@@ -2,11 +2,17 @@ const $=id=>document.getElementById(id);
 let session=crypto.randomUUID(),count=0;
 
 function message(role,text){
+  $('messages').querySelector('.empty-state')?.remove();
   const item=document.createElement('article');
   item.className=role;
   item.textContent=role+': '+text;
   $('messages').append(item);
   item.scrollIntoView({block:'nearest'});
+}
+
+function setRunState(kind,text){
+  $('status').textContent=text;
+  $('run-dot').className='run-dot '+kind;
 }
 
 function selectTab(name){
@@ -65,7 +71,7 @@ $('chat').onsubmit=async event=>{
   message('user',task);
   $('send').disabled=true;
   $('reset').disabled=true;
-  $('status').textContent='Running...';
+  setRunState('running','Reviewing agreement evidence…');
   $('trace').textContent='Waiting for result...';
   $('observations').textContent='Waiting for result...';
   try{
@@ -84,15 +90,15 @@ $('chat').onsubmit=async event=>{
     if(!response.ok)throw Error(JSON.stringify(data.detail));
     message('agent',data.final_response);
     count+=2;
-    $('memory').textContent=count+' messages exchanged; server retains at most 12';
-    $('status').textContent=data.status+' | '+data.stop_reason+' | '+data.steps+' steps';
+    $('memory').textContent=count+' messages exchanged; server retains a configured bounded history';
+    setRunState(data.status==='completed'?'success':(data.status==='blocked'||data.status==='failed'||data.status==='contract_error'?'error':'idle'),data.status.replaceAll('_',' ')+' · '+data.stop_reason.replaceAll('_',' ')+' · '+data.steps+' steps');
     const fallback=data.events.find(event=>event.event==='provider_fallback');
-    if(fallback)$('status').textContent+=' | degraded: '+fallback.reason;
+    if(fallback)$('status').textContent+=' · degraded: '+fallback.reason;
     $('trace').textContent=JSON.stringify(data.tool_calls,null,2);
     $('observations').textContent=JSON.stringify(data.events,null,2);
     $('task').value='';
   }catch(error){
-    $('status').textContent='Error: '+error.message;
+    setRunState('error','Request error: '+error.message);
   }finally{
     $('send').disabled=false;
     $('reset').disabled=false;
@@ -111,7 +117,7 @@ $('reset').onclick=async()=>{
     $('external').value='';
     $('context-count').textContent='0 / 10,000';
     $('task').value='';
-    $('status').textContent='Idle';
+    setRunState('idle','Ready for a new review');
     $('trace').textContent='No tool calls yet.';
     $('observations').textContent='No observations yet.';
     selectTab('chat');
@@ -121,4 +127,7 @@ $('reset').onclick=async()=>{
 };
 
 selectTab('chat');
+for(const button of document.querySelectorAll('.example')){
+  button.onclick=()=>{ $('task').value=button.dataset.task; $('task').focus(); };
+}
 init();

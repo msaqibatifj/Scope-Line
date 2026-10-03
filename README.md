@@ -42,6 +42,31 @@ are retried within `MAX_TOOL_RETRIES`. Each tool attempt operates on an isolated
 sandbox copy and commits only after its typed result succeeds before the run
 deadline. Arena fault injection affects only the first matching operation.
 
+## Architecture and contracts
+
+```text
+Browser / Arena request
+        |
+     FastAPI routes
+        |
+  timeout + response guard
+        |
+ typed agent state and decision loop
+   |          |             |
+prompt     validator      sandbox tools
+layers       |             |
+   +------ validated observations ------+
+        |
+  typed Arena response, trace, metrics
+```
+
+Every provider decision is validated as an `AgentDecision` before execution. A
+tool decision can select only one registered tool and must satisfy that tool's
+Pydantic input model. Semantic checks then require user-selected project/request
+provenance, the correct action order, and evidence for every requested operation
+before `finish` can produce `completed`. A failed validation gets one repair
+attempt; otherwise the run returns `contract_error`.
+
 ## Tools
 
 | Tool | Purpose | Important validation |
@@ -79,7 +104,7 @@ tests/
 ```
 
 Arena runs receive a fresh workspace. Chat sessions retain their private workspace
-and up to six recent turns until reset, eviction, process restart, or TTL expiry.
+and a configurable bounded history until reset, eviction, process restart, or TTL expiry.
 The browser workspace has separate Chat and Context tabs. Text pasted into Context
 stays attached to the current review and is always submitted as untrusted external
 data; starting a new review clears it.
@@ -127,6 +152,10 @@ ALLOW_LOCAL_FALLBACK=false
 DIRECT_API_FREE_TIER=true
 SPEND_LIMIT_USD=0
 MODEL_TIMEOUT_SECONDS=10
+MAX_HISTORY_MESSAGES=12
+MAX_HISTORY_CHARS=20000
+MAX_HISTORY_MESSAGE_CHARS=2000
+MAX_EXTERNAL_CONTEXT_CHARS=4000
 ```
 
 `DIRECT_API_FREE_TIER=true` declares that the Gemini and Groq keys use free-tier
@@ -178,8 +207,7 @@ best combined controller alignment and runtime-backup path. See
 limitations, source provenance and raw evidence. Estimated cost was zero under the
 configured free-tier assumption; this is not a provider billing receipt.
 
-The historical OpenRouter results remain in `evaluation/model_comparison_results.json`
-and do not apply to the current models.
+Historical OpenRouter evidence is excluded from the Gemini selection decision.
 
 Before release, start the server with **both** `ALLOW_MODEL_FALLBACK=false` and
 `ALLOW_LOCAL_FALLBACK=false`, then run the two Gemini candidates against the same
@@ -189,9 +217,9 @@ success for the originally selected model. Qwen is the runtime backup, not a can
 to benchmark a server with either fallback switch enabled. Select the production
 Gemini default after reviewing the comparison; 3.1 is provisional until then.
 
-Record task success, model-decision validity, action selection, latency, tokens and
-cost. The runner's outer-response contract check alone does not measure model-decision
-validity. The project release target remains at least 9/10 live-only successes with
+Record task success, first-attempt model-decision validity, repaired decisions,
+action selection, latency, available-token coverage, and cost. The runner validates
+the typed outer response separately from raw model-decision validity. The project release target remains at least 9/10 live-only successes with
 no autonomy or unsupported-completion failures. This is a project target, not a
 threshold prescribed by the assignment. Restore model fallback after comparison.
 

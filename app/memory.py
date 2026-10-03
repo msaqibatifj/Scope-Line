@@ -3,6 +3,7 @@ from collections import OrderedDict
 from time import monotonic
 from langchain_core.messages import HumanMessage, AIMessage
 from app.sandbox import Sandbox
+from app.config import settings
 
 
 class SessionCapacityError(RuntimeError):
@@ -53,8 +54,8 @@ class Memory:
     def add(self, session, user, assistant):
         self._touch(session)
         messages = self.get(session) + [HumanMessage(content=user), AIMessage(content=assistant)]
-        # Six recent turns; also enforce a character ceiling (not a token counter).
-        while len(messages) > 12 or sum(len(str(m.content)) for m in messages) > 24000:
+        # Limits are configurable and keep complete user/assistant turn pairs.
+        while len(messages) > settings.max_history_messages or sum(len(str(m.content)) for m in messages) > settings.max_history_chars:
             messages = messages[2:]
         self.sessions[session] = messages
         self.sessions.move_to_end(session)

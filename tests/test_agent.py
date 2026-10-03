@@ -490,6 +490,47 @@ class ScopeLineTests(unittest.TestCase):
             self.assertIn('scope_drift', data['final_response'])
             client.delete('/chat/' + session)
 
+    def test_chat_preserves_goal_across_three_clarification_replies(self):
+        with TestClient(app) as client:
+            session = 'clarify-three-turn-123456'
+            self.assertEqual(client.post('/chat', json={'session_id': session, 'task': 'Analyze scope drift'}).json()['status'], 'needs_clarification')
+            self.assertEqual(client.post('/chat', json={'session_id': session, 'task': 'project-001'}).json()['status'], 'needs_clarification')
+            result = client.post('/chat', json={'session_id': session, 'task': 'request-001'}).json()
+            self.assertEqual(result['status'], 'completed')
+            self.assertIn('scope_drift', result['final_response'])
+
+    def test_multiple_identifiers_require_clarification(self):
+        with TestClient(app) as client:
+            result = client.post('/arena/run', json={'task': 'Inspect agreement for project-001 and project-002'}).json()
+        self.assertEqual(result['status'], 'needs_clarification')
+        self.assertEqual(result['stop_reason'], 'ambiguous_identifier_selection')
+
+    def test_paraphrased_contract_review_is_supported(self):
+        with TestClient(app) as client:
+            result = client.post('/arena/run', json={'task': 'Review the contract for project-001'}).json()
+        self.assertEqual(result['status'], 'completed')
+        self.assertEqual(result['tool_calls'][0]['tool'], 'inspect_agreement')
+
+    def test_request_id_cannot_be_replaced_with_inline_text(self):
+        decisions = [
+            {'status': 'call_tool', 'tool': 'analyze_scope_drift', 'arguments': {
+                'project_id': 'project-001', 'request_text': 'Change the home-page headline to supplied copy',
+            }, 'reason': 'analyze'},
+            {'status': 'finish', 'reason': 'done'},
+        ]
+        with patch('app.agent.LocalDecisionProvider.decide', side_effect=decisions), TestClient(app) as client:
+            result = client.post('/arena/run', json={'task': 'Analyze request-001 for project-001'}).json()
+        self.assertEqual(result['status'], 'contract_error')
+        self.assertTrue(any('request ID' in error['message'] for error in result['errors']))
+
+    def test_requested_inspection_and_analysis_both_complete(self):
+        with TestClient(app) as client:
+            result = client.post('/arena/run', json={
+                'task': 'Inspect agreement for project-001 and analyze request-001',
+            }).json()
+        self.assertEqual(result['status'], 'completed')
+        self.assertEqual([call['tool'] for call in result['tool_calls']], ['inspect_agreement', 'analyze_scope_drift'])
+
 
     def test_model_cannot_finish_analysis_with_project_listing(self):
         decisions = [
