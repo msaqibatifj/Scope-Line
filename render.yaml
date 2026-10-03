@@ -28,7 +28,7 @@ services:
       - key: FALLBACK_MODELS
         value: groq/qwen3.8-27b
       - key: ALLOW_MODEL_FALLBACK
-        value: true
+        value: false
       - key: ALLOW_LOCAL_FALLBACK
         value: false
       - key: DIRECT_API_FREE_TIER

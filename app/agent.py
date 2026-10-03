@@ -27,7 +27,7 @@ from app.models import (
 )
 from app.prompts import build_decision_context
 from app.providers import (estimate_cost_usd, model_preflight, openrouter_api_key,
-    provider_name, provider_connection, fallback_model_names, LOCAL_MODEL)
+    provider_name, provider_connection, fallback_model_names, safe_error_message, LOCAL_MODEL)
 from app.tools import ScopeDriftTools, TOOLS
 from app.intent import operations, ids, inline_request, forbidden_action
 
@@ -260,7 +260,7 @@ async def run_agent(request, history, model, *, sandbox, progress=None):
                 usage = _merge_usage(usage, provider_usage)
                 if progress is not None:
                     progress['usage'] = usage
-            message = str(error)[:500]
+            message = safe_error_message(error)
             errors.append({'step': step, 'type': 'decision_validation', 'message': message})
             events.append({'step': step, 'event': 'decision_rejected', 'message': message})
             if not repair_used and step < request.arena_config.max_steps:
@@ -272,7 +272,7 @@ async def run_agent(request, history, model, *, sandbox, progress=None):
         except Exception as error:
             if use_live and backup_models and _is_transient_model_error(error):
                 next_model = backup_models.pop(0)
-                errors.append({'step': step, 'type': 'model_dependency', 'model': model, 'message': str(error)[:500]})
+                errors.append({'step': step, 'type': 'model_dependency', 'model': model, 'message': safe_error_message(error)})
                 events.append({'step': step, 'event': 'provider_fallback', 'from_model': model,
                                'to_model': next_model, 'reason': type(error).__name__})
                 model = next_model
@@ -282,7 +282,7 @@ async def run_agent(request, history, model, *, sandbox, progress=None):
             if use_live and settings.allow_local_fallback and _is_transient_model_error(error):
                 # A temporary provider outage downgrades once to the tested local policy.
                 use_live = False
-                message = str(error)[:500]
+                message = safe_error_message(error)
                 errors.append({'step': step, 'type': 'model_dependency', 'message': message})
                 events.append({
                     'step': step,
@@ -293,7 +293,7 @@ async def run_agent(request, history, model, *, sandbox, progress=None):
                 })
                 raw_decision = local_provider.decide(request, history, state.observations, repair_requested=repair_used)
             else:
-                errors.append({'step': step, 'type': 'model_error', 'message': str(error)[:500] or type(error).__name__, 'exception_type': type(error).__name__})
+                errors.append({'step': step, 'type': 'model_error', 'message': safe_error_message(error), 'exception_type': type(error).__name__})
                 return _response(request, 'failed', 'The selected model call failed safely.', steps, 'model_call_failed', tool_calls, errors, events, usage)
 
         # Step 3: inject the selected Arena fault once.
@@ -311,7 +311,7 @@ async def run_agent(request, history, model, *, sandbox, progress=None):
             _validate_decision_against_state(decision, state, args)
         except (ValidationError, ValueError) as error:
             # Step 5: allow one decision repair before a typed contract stop.
-            message = str(error)[:500]
+            message = safe_error_message(error)
             errors.append({'step': step, 'type': 'decision_validation', 'message': message})
             events.append({'step': step, 'event': 'decision_rejected', 'message': message})
             if not repair_used and step < request.arena_config.max_steps:
@@ -392,9 +392,10 @@ async def _execute_tool(tool_name, args, tools, step, fault_type, fault_used, tr
             return ToolResult(ok=False, error={'code': 'tool_timeout', 'message': 'Tool attempt exceeded the run deadline.'}), fault_used
         except Exception as error:
             latency_ms = (perf_counter() - started) * 1000
-            last_result = ToolResult(ok=False, error={'code': 'tool_exception', 'message': str(error)[:500]})
+            message = safe_error_message(error)
+            last_result = ToolResult(ok=False, error={'code': 'tool_exception', 'message': message})
             traces.append(ToolTrace(step=step, tool=tool_name, attempt=attempt, outcome='exception', latency_ms=latency_ms))
-            errors.append({'step': step, 'type': 'tool_exception', 'message': str(error)[:500]})
+            errors.append({'step': step, 'type': 'tool_exception', 'message': message})
     return last_result, fault_used
 
 

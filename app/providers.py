@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from collections import deque
+import re
 from time import monotonic
 
 from app.config import settings
@@ -87,11 +88,11 @@ def provider_connection(model_name: str) -> tuple[str, str, str]:
     """Return endpoint, credential and provider-native ID; never expose this publicly."""
     provider = provider_name(model_name)
     if provider == 'gemini':
-        return settings.gemini_base_url, settings.gemini_api_key, model_name
+        return settings.gemini_base_url, settings.gemini_api_key.strip(), model_name
     if provider == 'groq':
-        return settings.groq_base_url, settings.groq_api_key, 'qwen/' + model_name.removeprefix('groq/')
+        return settings.groq_base_url, settings.groq_api_key.strip(), 'qwen/' + model_name.removeprefix('groq/')
     if provider == 'openrouter':
-        return settings.openrouter_base_url, settings.openrouter_api_key, model_name
+        return settings.openrouter_base_url, settings.openrouter_api_key.strip(), model_name
     return '', '', model_name
 
 
@@ -129,7 +130,16 @@ def model_preflight(model_name: str) -> tuple[bool, str]:
 
 
 def openrouter_api_key() -> str:
-    return settings.openrouter_api_key
+    return settings.openrouter_api_key.strip()
+
+
+def safe_error_message(error: Exception | str, limit: int = 500) -> str:
+    """Return diagnostic detail without serializing credentials into Arena output."""
+    message = str(error)
+    message = re.sub(r"(?i)(authorization\s*[:=]\s*)(?:bearer\s+)?[^\s'\\\"]+", r'\1[redacted]', message)
+    message = re.sub(r"(?i)\bbearer\s+[^\s'\\\"]+", 'Bearer [redacted]', message)
+    message = re.sub(r'\b(?:gsk|sk|AIza)[A-Za-z0-9_\-]{8,}', '[redacted]', message)
+    return message[:limit] or type(error).__name__
 
 
 def is_openrouter_model(model_name: str) -> bool:

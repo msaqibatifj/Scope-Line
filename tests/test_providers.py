@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 from app.agent import DirectDecisionProvider
 from app.config import settings
 from app.main import app
-from app.providers import model_preflight, fallback_model_names
+from app.providers import model_preflight, fallback_model_names, safe_error_message
 from evaluation.run_model_comparison import DEFAULT_MODELS, expected_checks, validate_comparison_server
 
 PRIMARY = 'gemini-3.1-flash-lite'
@@ -28,6 +28,7 @@ class ProviderTests(unittest.TestCase):
         settings.fallback_models = BACKUP
         settings.enable_live_models = True
         settings.allow_model_fallback = True
+
         settings.allow_local_fallback = False
         settings.direct_api_free_tier = True
         settings.gemini_api_key = 'gemini-test'
@@ -37,6 +38,14 @@ class ProviderTests(unittest.TestCase):
     def tearDown(self):
         for key, value in self.original.items():
             setattr(settings, key, value)
+
+    def test_provider_credentials_are_trimmed_and_error_text_is_redacted(self):
+        settings.groq_api_key = 'gsk_secretvalue123456\n'
+        from app.providers import provider_connection
+        self.assertEqual(provider_connection(BACKUP)[1], 'gsk_secretvalue123456')
+        message = safe_error_message("Illegal header value b'Bearer gsk_secretvalue123456\\n'")
+        self.assertNotIn('gsk_secretvalue123456', message)
+        self.assertIn('[redacted]', message)
 
     def test_models_use_separate_credentials_and_no_cycles(self):
         self.assertEqual(fallback_model_names(PRIMARY), [BACKUP])
