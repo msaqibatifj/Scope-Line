@@ -76,7 +76,10 @@ async def chat(payload: ChatRequest, request: Request):
             sandbox = memory.begin(payload.session_id)
         except SessionCapacityError as error:
             raise HTTPException(503, str(error)) from error
-        result = await execute(payload, memory.get(payload.session_id), execution_model, sandbox=sandbox)
+        effective_task = memory.resolve(payload.session_id, payload.task)
+        execution_payload = payload.model_copy(update={'task': effective_task})
+        result = await execute(execution_payload, memory.get(payload.session_id), execution_model, sandbox=sandbox)
+        memory.record_result(payload.session_id, effective_task, result)
         if not admitted:
             result.events.insert(0, {'step': 0, 'event': 'provider_fallback', 'from_model': payload.model, 'to_model': LOCAL_MODEL, 'reason': admission_reason})
         else:

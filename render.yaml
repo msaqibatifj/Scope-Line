@@ -12,7 +12,7 @@ services:
       - key: MODEL_PROVIDER
         value: gemini
       - key: MODEL_NAME
-        value: gemini-3.1-flash-lite
+        value: gemini-3.5-flash-lite
       - key: ALLOWED_MODELS
         value: local-scripted,gemini-3.1-flash-lite,gemini-3.5-flash-lite,groq/qwen3.8-27b
       - key: ENABLE_LIVE_MODELS

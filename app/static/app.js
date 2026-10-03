@@ -40,7 +40,7 @@ async function init(){
     }
     const readiness=data.readiness||{};
     $('model-readiness').textContent=readiness.ready
-      ? 'Live model ready: '+readiness.configured_default
+      ? (readiness.configured_default==='local-scripted' ? 'Offline test model: local-scripted' : 'Provider configured: '+readiness.configured_default+' · authentication is checked when a run starts')
       : 'Degraded mode: '+(readiness.reason||'live model unavailable')+(readiness.fallback_enabled ? '. Fallback: '+(readiness.fallback_model||'local-scripted') : '. Fallback disabled.');
   }catch(error){
     $('status').textContent=error.message;

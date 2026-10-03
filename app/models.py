@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 
 class Contract(BaseModel):
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra='forbid', strict=True)
 
 
 class ExternalContext(Contract):
@@ -168,7 +168,7 @@ class ChangeRequestDraft(Contract):
     analysis_id: str = Field(pattern=r'^analysis-\d{3}$')
     status: Literal['draft_only'] = 'draft_only'
     subject: str = Field(min_length=1, max_length=200)
-    body: str = Field(min_length=1, max_length=4000)
+    body: str = Field(min_length=1, max_length=10000)
 
 
 class ToolError(Contract):
@@ -201,8 +201,8 @@ class AnalyzeScopeDriftInput(Contract):
 
     @model_validator(mode='after')
     def require_request_source(self):
-        if not self.request_id and not self.request_text:
-            raise ValueError('request_id or request_text is required')
+        if bool(self.request_id) == bool(self.request_text):
+            raise ValueError('Exactly one of request_id or request_text is required')
         return self
 
 

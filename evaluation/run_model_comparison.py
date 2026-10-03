@@ -13,6 +13,10 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 import httpx
 from pydantic import ValidationError
 from app.models import ArenaResponse
@@ -64,6 +68,21 @@ def contract_is_valid(result: dict[str, Any]) -> bool:
         return False
 
 
+def decision_metrics(result: dict[str, Any]) -> dict[str, Any]:
+    """Score actual decisions; provider outages and injected faults are separate."""
+    events = result.get('events', [])
+    injected_steps = {e.get('step') for e in events if e.get('event') == 'fault_injected' and e.get('type') == 'invalid_agent_decision'}
+    received = {e.get('step') for e in events if e.get('event') == 'decision_received'}
+    # Envelope parse failures are also actual provider decisions, even without decision_received.
+    rejected = {e.get('step') for e in events if e.get('event') == 'decision_rejected'}
+    actual = sorted((received | rejected) - injected_steps)
+    invalid = set(actual) & rejected
+    return {'first_attempt_decision_valid': (actual[0] not in invalid) if actual else None,
+            'model_decisions': len(actual), 'valid_model_decisions': len(actual) - len(invalid),
+            'invalid_model_decisions': len(invalid), 'injected_invalid_decisions': len(injected_steps),
+            'decision_repaired': any(e.get('event') == 'repair_requested' for e in events)}
+
+
 def save(output: Path, models: list[str], records: list[dict[str, Any]]) -> None:
     # Step 3: aggregate completed runs and preserve partial evidence.
     summaries = {}
@@ -77,6 +96,9 @@ def save(output: Path, models: list[str], records: list[dict[str, Any]]) -> None
             'task_successes': sum(bool(row.get('task_success')) for row in rows),
             'valid_contracts': sum(bool(row.get('contract_valid')) for row in rows),
             'first_attempt_decision_valid': sum(bool(row.get('first_attempt_decision_valid')) for row in rows),
+            'first_attempt_known_runs': sum(row.get('first_attempt_decision_valid') is not None for row in rows),
+            'model_decisions': sum(row.get('model_decisions', 0) for row in rows),
+            'valid_model_decisions': sum(row.get('valid_model_decisions', 0) for row in rows),
             'repaired_decision_runs': sum(bool(row.get('decision_repaired')) for row in rows),
             'correct_actions': sum(bool(row.get('correct_action')) for row in rows),
             'average_latency_ms': round(sum(latencies) / len(latencies), 2) if latencies else None,
@@ -103,7 +125,7 @@ def save(output: Path, models: list[str], records: list[dict[str, Any]]) -> None
 
 def _source_revision() -> str | None:
     try:
-        return subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True, cwd=ROOT.parent).strip()
+        return subprocess.check_output(['git', '-c', f'safe.directory={ROOT.parent}', 'rev-parse', 'HEAD'], text=True, cwd=ROOT.parent, stderr=subprocess.DEVNULL).strip()
     except (OSError, subprocess.CalledProcessError):
         return None
 
@@ -178,8 +200,7 @@ def main() -> int:
                         tools=[call.get('tool') for call in result.get('tool_calls', [])],
                         error_types=[error.get('type') for error in result.get('errors', [])],
                         provider_errors=[error.get('message') for error in result.get('errors', [])],
-                        first_attempt_decision_valid=not any(event.get('event') == 'decision_rejected' and event.get('step') == 1 for event in result.get('events', [])),
-                        decision_repaired=any(event.get('event') == 'repair_requested' for event in result.get('events', [])),
+                        **decision_metrics(result),
                         response=result,
                         transport='in-process API / live provider HTTPS' if args.in_process else args.url,
                         fallback_used=any(event.get('event') == 'provider_fallback' for event in result.get('events', [])),

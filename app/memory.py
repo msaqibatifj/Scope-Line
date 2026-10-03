@@ -4,6 +4,7 @@ from time import monotonic
 from langchain_core.messages import HumanMessage, AIMessage
 from app.sandbox import Sandbox
 from app.config import settings
+from app.intent import resolve_reply, pending_goal
 
 
 class SessionCapacityError(RuntimeError):
@@ -16,6 +17,7 @@ class Memory:
         self.sandboxes = {}
         self.last_activity = {}
         self.active = set()
+        self.pending = {}
         self.max_sessions = max_sessions
         self.ttl_seconds = ttl_seconds
         self.clock = clock
@@ -51,6 +53,14 @@ class Memory:
     def get(self, session):
         self.expire()
         return list(self.sessions.get(session, []))
+    def resolve(self, session, task):
+        return resolve_reply(task, self.pending.get(session))
+
+    def record_result(self, session, task, result):
+        if result.status == 'needs_clarification':
+            self.pending[session] = pending_goal(task)
+        else:
+            self.pending.pop(session, None)
     def add(self, session, user, assistant):
         self._touch(session)
         messages = self.get(session) + [HumanMessage(content=user), AIMessage(content=assistant)]
@@ -66,6 +76,7 @@ class Memory:
         if sandbox is not None:
             sandbox.cleanup()
         self.sessions.pop(session, None)
+        self.pending.pop(session, None)
         self.last_activity.pop(session, None)
 
     def close(self):
@@ -75,3 +86,4 @@ class Memory:
         self.sessions.clear()
         self.last_activity.clear()
         self.active.clear()
+        self.pending.clear()

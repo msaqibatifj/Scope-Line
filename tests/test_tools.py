@@ -152,5 +152,5 @@ class ScopeDriftToolTests(unittest.TestCase):
             project_id='project-003',
             request_text='Deliver twenty product photos on a neutral background and build a custom mobile app.',
         ))
-        self.assertEqual(result.analysis.classification, 'scope_drift')
+        self.assertEqual(result.analysis.classification, 'ambiguous')
         self.assertTrue(any(item.category == 'missing_evidence' for item in result.analysis.findings))

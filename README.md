@@ -129,8 +129,8 @@ ScopeLine compares two Gemini candidates and uses Qwen as the sole runtime backu
 
 | Role | ScopeLine model ID | Provider API model ID |
 | --- | --- | --- |
-| Candidate A (provisional default) | `gemini-3.1-flash-lite` | `gemini-3.1-flash-lite` (Google) |
-| Candidate B | `gemini-3.5-flash-lite` | `gemini-3.5-flash-lite` (Google) |
+| Candidate A | `gemini-3.1-flash-lite` | `gemini-3.1-flash-lite` (Google) |
+| Candidate B (selected default) | `gemini-3.5-flash-lite` | `gemini-3.5-flash-lite` (Google) |
 | Backup | `groq/qwen3.8-27b` | `qwen/qwen3.8-27b` (Groq) |
 | Offline tests | `local-scripted` | No provider call |
 
@@ -141,7 +141,7 @@ but OpenRouter is not used by these three model IDs.
 
 ```env
 MODEL_PROVIDER=gemini
-MODEL_NAME=gemini-3.1-flash-lite
+MODEL_NAME=gemini-3.5-flash-lite
 ALLOWED_MODELS=local-scripted,gemini-3.1-flash-lite,gemini-3.5-flash-lite,groq/qwen3.8-27b
 FALLBACK_MODELS=groq/qwen3.8-27b
 ENABLE_LIVE_MODELS=true
@@ -189,7 +189,7 @@ state; they do not establish a successful live-model run.
 
 ## Model selection evidence and release gate
 
-The latest live comparison used the same ten cases with both fallback paths disabled.
+The historical comparison below used the same ten cases with both fallback paths disabled.
 The first run saved `evaluation/gemini_comparison_results.json`; a slower retry with
 `MODEL_TIMEOUT_SECONDS=30` and `--delay 30` saved `evaluation/gemini_comparison_results_retry.json`:
 
@@ -201,8 +201,7 @@ The first run saved `evaluation/gemini_comparison_results.json`; a slower retry 
 The remaining 3.1 retry failure was a Gemini API 503 on `List projects`. The remaining
 3.5 retry failure was a correctly rejected model action: it selected `list_projects`
 when the task needed a clarification. The project release target remains 9/10
-live-only successes with no fallback. 3.1 remains the default because it has the
-best combined controller alignment and runtime-backup path. See
+live-only successes with no fallback. Those historical results selected 3.1. See
 [evaluation/gemini_comparison.md](evaluation/gemini_comparison.md) for case results,
 limitations, source provenance and raw evidence. Estimated cost was zero under the
 configured free-tier assumption; this is not a provider billing receipt.
@@ -215,7 +214,33 @@ ten cases. The runner writes `evaluation/gemini_comparison_results.json`, keepin
 historical results intact. A run that switches to any backup does not count as a
 success for the originally selected model. Qwen is the runtime backup, not a candidate in this comparison. The runner refuses
 to benchmark a server with either fallback switch enabled. Select the production
-Gemini default after reviewing the comparison; 3.1 is provisional until then.
+Gemini default after reviewing the comparison. The current selection is 3.5; current
+source evidence is saved separately in `evaluation/current_comparison_results.json`.
+
+The repaired implementation's 3 October comparison selected **Gemini 3.5 Flash-Lite**:
+
+| Candidate | Task success | Valid model decisions | Mean latency | Input / output tokens | Known cost coverage |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Gemini 3.1 Flash-Lite | 9/10 | 16/17 | 16.77 s | 46,487 / 671 | 9/10 runs, $0 known estimate |
+| Gemini 3.5 Flash-Lite | 10/10 | 18/18 | 2.99 s | 49,132 / 560 | 10/10 runs, $0 estimated |
+
+Both produced 10/10 valid outer Arena responses, which is a different metric from
+valid model decisions. Neither used fallback. The 3.1 failure was a provider read
+timeout. 3.5 completed every tested task with lower latency and fully valid actual
+decisions, making it the better current default despite slightly higher input-token
+usage. Read `evaluation/current_model_comparison.md` for coverage, injected-fault
+handling, limitations and source provenance. An existing `.env` or hosting
+`MODEL_NAME` setting overrides the default; set it to `gemini-3.5-flash-lite` to use
+the selected candidate.
+
+The task requires short structured decisions rather than long-form generation. The
+retained history is bounded to 12 messages and 20,000 characters, each history
+message to 2,000 characters, and each untrusted context item to 4,000 characters.
+With at most six bounded tool observations and 512 output tokens per call, the
+application keeps context bounded and does not depend on maximum context capacity.
+The two candidates handled these bounded prompts in the recorded comparison. Context omissions are marked
+in prompts and traces; the active pending goal is stored separately from history.
+Verify provider limits when changing models or raising these settings.
 
 Record task success, first-attempt model-decision validity, repaired decisions,
 action selection, latency, available-token coverage, and cost. The runner validates
@@ -280,12 +305,23 @@ restarts erase in-memory chats and drafts. `/models` reports whether the configu
 live default is ready and the UI exposes degraded fallback mode when a transient
 provider failure occurs.
 
+The current public URL is https://scope-line.vercel.app/. Configuration readiness
+means the provider is enabled and a credential is present; it does not authenticate
+the credential. On 3 October, public health and manifest succeeded, while a default
+Arena run returned a Gemini 401. Correct production authentication and redeploy the
+repaired source before treating the public application as submission-ready.
+
+On Vercel, process-local conversation state may disappear when requests reach a
+different instance. Use the documented single-worker Render deployment or shared
+session storage if stable cross-request sessions are required under scaling.
+
 ## Submission packaging
 
 Copy `release/submission.example.json` outside the repository, fill every required
 field only after deploying the recorded commit, then run:
 
 ```bash
+.venv/bin/python -m pip install -r release/requirements.txt
 .venv/bin/python release/prepare_submission.py --metadata /safe/path/submission.json
 ```
 
@@ -293,6 +329,25 @@ The command creates the required roll-number ZIP and clickable submission PDF in
 `dist/`. It uses an allowlist and excludes secrets, environments, PDFs used as
 references, Git metadata, and `student-agent/`. Extract the ZIP to a fresh folder,
 install dependencies, run the tests, and verify the public URLs before upload.
+
+The helper checks that the Git checkout matches `final_commit_hash` and the source
+is clean (only generated `SUBMISSION.md` may differ). Commit the source first, then
+put that hash in an external metadata file. The helper generates identical PDF and
+Markdown fields after the source commit; this avoids a self-referential commit hash.
+It rejects placeholder/private/reserved URLs, wraps long fields, embeds a TrueType
+font and links each URL on its own row. Set `SUBMISSION_FONT` if your name requires
+a font unavailable on the host. Inspect the rendered PDF before turning in.
+
+Uncommitted review snapshots can be prepared by calling the generator functions,
+but must be labeled as drafts and must not claim to represent the deployed commit.
+
+Clarification replies update typed pending-goal fields. Completion, failure and
+reset clear that goal, so acknowledgements do not replay completed operations.
+Inline client text follows a colon or a `client says` marker and remains data;
+use a request ID for stored requests. Safe compound operations are supported.
+Each requested operation needs successful evidence before completion. Input over
+the 4,000-character client-request limit receives an explicit budget stop; output
+omissions and response-size failures are traced.
 
 ## Known limitations
 

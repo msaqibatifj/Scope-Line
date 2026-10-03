@@ -49,14 +49,15 @@ def build_decision_context(request, history, state, step):
         'system': SYSTEM_PROMPT,
         'user_goal': request.task,
         'history': [
-            {'role': message.type, 'content': str(message.content)[:settings.max_history_message_chars]}
-            for message in history[-6:]
+            {'role': message.type, 'content': str(message.content)[:settings.max_history_message_chars], 'truncated': len(str(message.content)) > settings.max_history_message_chars}
+            for message in history[-settings.max_history_messages:]
         ],
         'state': {
             'step': step,
             'max_steps': request.arena_config.max_steps,
             'fault': request.arena_config.fault.type,
             'current_task': state.get('current_task'),
+            'active_goal': state.get('goal'),
             'requested_operations': state.get('requested_operations', []),
             'requested_project_id': state.get('requested_project_id'),
             'requested_request_id': state.get('requested_request_id'),
@@ -69,8 +70,9 @@ def build_decision_context(request, history, state, step):
             'provider_usage': state.get('provider_usage', {}),
         },
         'external_untrusted': [
-            {'source': item.source, 'content': item.content[:settings.max_external_context_chars], 'trust': item.trust}
+            {'source': item.source, 'content': item.content[:settings.max_external_context_chars], 'trust': item.trust, 'truncated': len(item.content) > settings.max_external_context_chars}
             for item in request.external_context
         ],
-        'tool_observations': state.get('observations', [])[-3:],
+        'tool_observations': state.get('observations', []),
+        'history_omitted_messages': max(0, len(history) - settings.max_history_messages),
     }

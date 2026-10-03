@@ -29,6 +29,7 @@ from app.prompts import build_decision_context
 from app.providers import (estimate_cost_usd, model_preflight, openrouter_api_key,
     provider_name, provider_connection, fallback_model_names, LOCAL_MODEL)
 from app.tools import ScopeDriftTools, TOOLS
+from app.intent import operations, ids, inline_request, forbidden_action
 
 
 TOOL_INPUTS = {
@@ -47,104 +48,46 @@ class LocalDecisionProvider:
         task = _effective_goal(request.task, history)
         lowered = task.lower()
         current_lowered = request.task.lower()
+        requested = _requested_operations(task)
 
-        # Step 2: stop current user requests that exceed the review-only authority.
-        if _requests_forbidden_action(current_lowered):
-            return {
-                'status': 'block',
-                'reason': 'outside_autonomy_boundary',
-                'user_message': 'I can analyze scope and prepare a private draft, but I cannot contact clients, alter agreements, issue invoices, or charge anyone.',
-            }
-
-        # Step 3: use observations to continue a requested draft workflow or finish.
-        if observations:
-            latest = observations[-1]
-            if not latest.get('ok'):
-                return {
-                    'status': 'block',
-                    'reason': 'tool_failed',
-                    'user_message': f"The tool failed safely: {latest.get('error', {}).get('message', 'unknown error')}",
-                }
-            analysis = latest.get('analysis')
-            wants_draft = any(term in lowered for term in ('draft', 'change request', 'scope change note'))
-            wants_analysis = 'analyze' in _requested_operations(task)
-            if wants_analysis and not analysis:
-                project_id = _first_id(task, 'project')
-                request_id = _first_id(task, 'request')
-                request_text = None if request_id else _extract_inline_request(task)
-                if project_id and (request_id or request_text):
-                    return {
-                        'status': 'call_tool',
-                        'tool': 'analyze_scope_drift',
-                        'arguments': {'project_id': project_id, 'request_id': request_id, 'request_text': request_text},
-                        'reason': 'continue_requested_scope_analysis',
-                    }
-            if analysis and wants_draft and analysis.get('classification') == 'scope_drift' and not latest.get('draft'):
-                analysis_id = analysis['analysis_id']
-                project_id = analysis['project_id']
-                return {
-                    'status': 'call_tool',
-                    'tool': 'draft_change_request',
-                    'arguments': {
-                        'project_id': project_id,
-                        'analysis_id': analysis_id,
-                        'operation_id': f'draft-{project_id}-{analysis_id}',
-                    },
-                    'reason': 'confirmed_drift_ready_for_private_draft',
-                }
-            return {
-                'status': 'finish',
-                'reason': 'tool_observation_satisfied_goal',
-                'user_message': _summarize_tool_result(latest),
-            }
-
-        # Step 4: choose one evidence-based scope tool from the trusted request.
-        project_id = _first_id(task, 'project')
-        request_id = _first_id(task, 'request')
-        if any(term in lowered for term in ('list projects', 'show projects', 'project inventory', 'available projects')):
-            return {'status': 'call_tool', 'tool': 'list_projects', 'arguments': {'max_results': 20}, 'reason': 'list_available_projects'}
-
-        if any(term in lowered for term in ('inspect agreement', 'show agreement', 'view agreement', 'agreed scope', 'what is included', 'review the contract', 'review contract', 'review agreement')):
-            if not project_id:
-                return {
-                    'status': 'ask_clarification',
-                    'reason': 'agreement_missing_project',
-                    'user_message': 'Which project ID should I inspect?',
-                }
-            return {
-                'status': 'call_tool',
-                'tool': 'inspect_agreement',
-                'arguments': {'project_id': project_id},
-                'reason': 'inspect_agreed_scope',
-            }
-
-        scope_terms = ('scope', 'drift', 'in scope', 'out of scope', 'analyze', 'analyse', 'check request', 'draft', 'change request')
-        if any(term in lowered for term in scope_terms):
-            if not project_id:
-                return {
-                    'status': 'ask_clarification',
-                    'reason': 'analysis_missing_project',
-                    'user_message': 'Which project ID should I compare the client request against?',
-                }
+        # Choose each requested operation once; feedback determines draft eligibility.
+        completed = set()
+        for observation in observations:
+            if observation.get('tool'):
+                completed.add({'list_projects': 'list', 'inspect_agreement': 'inspect', 'analyze_scope_drift': 'analyze', 'draft_change_request': 'draft'}[observation['tool']])
+            elif observation.get('draft'):
+                completed.add('draft')
+            elif observation.get('analysis'):
+                completed.add('analyze')
+            elif observation.get('projects'):
+                completed.add('inspect' if 'inspect' in requested and len(observation['projects']) == 1 else 'list')
+        if not _requests_forbidden_action(current_lowered) and requested:
+            project_id = _first_id(task, 'project')
+            request_id = _first_id(task, 'request')
             request_text = None if request_id else _extract_inline_request(task)
-            if not request_id and not request_text:
-                return {
-                    'status': 'ask_clarification',
-                    'reason': 'analysis_missing_request',
-                    'user_message': 'What exactly did the client request? You can provide the request text or a request ID.',
-                }
-            return {
-                'status': 'call_tool',
-                'tool': 'analyze_scope_drift',
-                'arguments': {'project_id': project_id, 'request_id': request_id, 'request_text': request_text},
-                'reason': 'compare_request_with_agreement',
-            }
+            for operation in requested:
+                if operation in completed:
+                    continue
+                if operation == 'list':
+                    return {'status': 'call_tool', 'tool': 'list_projects', 'arguments': {'max_results': 20}}
+                if not project_id:
+                    return {'status': 'ask_clarification', 'reason': 'agreement_missing_project' if operation == 'inspect' else 'analysis_missing_project', 'user_message': 'Which project ID should I review?'}
+                if operation == 'inspect':
+                    return {'status': 'call_tool', 'tool': 'inspect_agreement', 'arguments': {'project_id': project_id}}
+                if operation == 'analyze':
+                    if not request_id and not request_text:
+                        return {'status': 'ask_clarification', 'reason': 'analysis_missing_request', 'user_message': 'What exactly did the client request? Provide request text or a request ID.'}
+                    return {'status': 'call_tool', 'tool': 'analyze_scope_drift', 'arguments': {'project_id': project_id, **({'request_id': request_id} if request_id else {'request_text': request_text})}}
+                analysis = next((o['analysis'] for o in reversed(observations) if o.get('analysis')), None)
+                if analysis and analysis['classification'] == 'scope_drift':
+                    return {'status': 'call_tool', 'tool': 'draft_change_request', 'arguments': {'project_id': project_id, 'analysis_id': analysis['analysis_id'], 'operation_id': f"draft-{project_id}-{analysis['analysis_id']}"}}
+            return {'status': 'finish', 'reason': 'tool_observation_satisfied_goal'}
 
-        return {
-            'status': 'ask_clarification',
-            'reason': 'unsupported_or_underspecified_goal',
-            'user_message': 'Ask me to list projects, inspect an agreement, analyze a client request, or draft a change request after confirmed scope drift.',
-        }
+        if _requests_forbidden_action(current_lowered):
+            return {'status': 'block', 'reason': 'outside_autonomy_boundary',
+                    'user_message': 'I can analyze scope and prepare private drafts, but cannot contact clients, invoice, charge or change agreements.'}
+        return {'status': 'ask_clarification', 'reason': 'unsupported_or_underspecified_goal',
+                'user_message': 'Ask me to list projects, inspect an agreement, analyze a client request, or prepare a private change-request draft.'}
 
 
 TOOL_DESCRIPTIONS = {
@@ -212,9 +155,10 @@ class OpenRouterDecisionProvider:
         provider_usage = _usage_from_response(data, model)
         try:
             decision = _parse_openrouter_decision(data)
-        except ValueError as error:
+        except (ValueError, KeyError, IndexError, TypeError, AttributeError) as original:
+            error = ValueError(f'Invalid provider decision envelope: {original}')
             setattr(error, 'provider_usage', provider_usage)
-            raise
+            raise error from original
         return decision, provider_usage
 
 
@@ -259,6 +203,8 @@ async def run_agent(request, history, model, *, sandbox, progress=None):
             'Please choose one project and one client request for this review.', 0,
             'ambiguous_identifier_selection', [], [], [], usage)
     requested_request_text = None if requested_request_ids else _extract_inline_request(effective_goal)
+    if len(effective_goal) > 10000 or (requested_request_text and len(requested_request_text) > 4000):
+        return _response(request, 'budget_exceeded', 'The task exceeds the input budget. Keep the goal under 10,000 characters and the client request under 4,000.', 0, 'input_budget_exceeded', [], [], [], usage)
     state = AgentRunState(
         goal=effective_goal,
         current_task=request.task,
@@ -295,6 +241,9 @@ async def run_agent(request, history, model, *, sandbox, progress=None):
             'history_messages': len(context['history']),
             'external_items': len(context['external_untrusted']),
             'observations': len(context['tool_observations']),
+            'history_omitted_messages': context['history_omitted_messages'],
+            'truncated_history_messages': sum(item['truncated'] for item in context['history']),
+            'truncated_external_items': sum(item['truncated'] for item in context['external_untrusted']),
         })
         try:
             if use_live:
@@ -353,7 +302,7 @@ async def run_agent(request, history, model, *, sandbox, progress=None):
             fault_used = True
             events.append({'step': step, 'event': 'fault_injected', 'type': fault_type})
 
-        events.append({'step': step, 'event': 'decision_received', 'decision': _safe_event_payload(raw_decision)})
+        events.append({'step': step, 'event': 'decision_received', 'decision': _safe_event_payload(raw_decision), 'synthetic': fault_type == 'invalid_agent_decision' and fault_used and not repair_used})
         try:
             # Step 4: validate both the decision and its tool arguments.
             decision = AgentDecision.model_validate(raw_decision)
@@ -383,6 +332,7 @@ async def run_agent(request, history, model, *, sandbox, progress=None):
         # Step 6: execute one validated tool and feed its result back as evidence.
         result, fault_used = await _execute_tool(decision.tool, args, tools, step, fault_type, fault_used, tool_calls, events, errors, state.deadline_monotonic)
         observation = result.model_dump(mode='json')
+        observation['tool'] = decision.tool
         state.observations.append(observation)
         state.completed_actions.append(decision.tool)
         if args and hasattr(args, 'project_id'):
@@ -451,7 +401,8 @@ async def _execute_tool(tool_name, args, tools, step, fault_type, fault_used, tr
 def _response(request, status, final_response, steps, stop_reason, tool_calls, errors, events, usage=None):
     usage = usage or {'input_tokens': None, 'output_tokens': None, 'estimated_cost_usd': None}
     if len(final_response) > 2000:
-        final_response = final_response[:1900] + '\n\n[Output truncated by the response limit. Inspect the validated tool observation for the complete result.]'
+        marker = '\n\n[Response limit reached. The complete result is in the tool observation.]'
+        final_response = final_response[:2000 - len(marker)] + marker
         errors = [*errors, {'type': 'response_truncated', 'message': 'The rendered response exceeded 2,000 characters.'}]
         events = [*events, {'step': steps, 'event': 'response_truncated', 'limit': 2000}]
     return ArenaResponse(
@@ -479,34 +430,12 @@ def _combined_goal(task, history):
 
 
 def _effective_goal(task, history):
-    current = task.strip()
-    if _has_operation_intent(current) or _requests_forbidden_action(current.lower()):
-        return current
-    replies = [current]
-    for message in reversed(history[-12:]):
-        if getattr(message, 'type', None) != 'human':
-            continue
-        content = str(message.content).strip()
-        replies.insert(0, content)
-        if _has_operation_intent(content) or _requests_forbidden_action(content.lower()):
-            break
-    return _bounded_text(' '.join(replies), 10000)
+    # Chat routes resolve typed pending goals before entering the bounded loop.
+    return task.strip()
 
 
 def _requested_operations(goal):
-    lowered = goal.lower()
-    operations = []
-    if any(term in lowered for term in ('list projects', 'show projects', 'project inventory', 'available projects')):
-        operations.append('list')
-    if any(term in lowered for term in ('inspect agreement', 'show agreement', 'view agreement', 'agreed scope', 'what is included', 'review the contract', 'review contract', 'review agreement')):
-        operations.append('inspect')
-    wants_draft = any(term in lowered for term in ('draft', 'change request', 'scope change note'))
-    wants_analysis = wants_draft or any(term in lowered for term in ('scope', 'drift', 'in scope', 'out of scope', 'analyze', 'analyse', 'check request'))
-    if wants_analysis:
-        operations.append('analyze')
-    if wants_draft:
-        operations.append('draft')
-    return operations
+    return operations(goal)
 
 
 def _has_operation_intent(text):
@@ -533,7 +462,7 @@ def _validate_tool_grounding(decision, state, args):
     requested = state.requested_operations
     tool = decision.tool
     if tool == 'list_projects':
-        if requested and requested != ['list']:
+        if requested and 'list' not in requested:
             raise ValueError('list_projects is not the requested operation')
         return
     if tool == 'inspect_agreement':
@@ -587,6 +516,13 @@ def _validate_finish_evidence(state):
         raise ValueError('finish cannot follow a failed tool observation')
     requested = state.requested_operations
     actions = set(state.completed_actions)
+    if 'list' in requested and 'list_projects' not in actions:
+        raise ValueError('finish for list requires project-list evidence')
+    if 'inspect' in requested:
+        inspected = any(action == 'inspect_agreement' and len(observation.get('projects') or []) == 1 and observation['projects'][0].get('project_id') == state.requested_project_id
+                        for action, observation in zip(state.completed_actions, state.observations))
+        if not inspected:
+            raise ValueError('finish for inspection requires matching agreement evidence')
     if requested == ['list']:
         if 'list_projects' in actions and any(item.get('projects') for item in state.observations):
             return
@@ -630,15 +566,7 @@ def _single_operation_already_satisfied(state, observation):
 
 
 def _requests_forbidden_action(lowered):
-    contact = r'\b(send|email|e-mail|dispatch|forward|contact|message|deliver|transmit)\b.{0,80}\b(client|customer|northstar|field notes|juniper|proposal|draft|change request|scope note)\b'
-    money = r'\b(issue|send|create|raise)\b.{0,40}\binvoice\b|\bcharge\b.{0,40}\b(client|card|customer)\b'
-    agreement = r'\b(sign|alter|modify|change|delete)\b.{0,60}\b(contract|agreement|project)\b'
-    for pattern in (contact, money, agreement):
-        for match in re.finditer(pattern, lowered):
-            prefix = lowered[max(0, match.start() - 45):match.start()]
-            if not re.search(r'\b(do not|don\'t|dont|never|without|no)\b[^.!?]{0,30}$', prefix):
-                return True
-    return False
+    return forbidden_action(lowered)
 
 
 def _negates_action(lowered):
@@ -651,11 +579,7 @@ def _first_id(text, prefix):
 
 
 def _all_ids(text, prefix):
-    return list(dict.fromkeys(
-        f'{prefix}-{match.group(1)}' for match in re.finditer(
-            rf'\b{prefix}[-\s]?(\d{{3}})\b', text, flags=re.IGNORECASE
-        )
-    ))
+    return ids(text, prefix)
 
 
 def _bounded_text(value, limit):
@@ -664,16 +588,7 @@ def _bounded_text(value, limit):
 
 
 def _extract_inline_request(text):
-    # A request must contain concrete content beyond generic analysis commands.
-    cleaned = re.sub(r'\bproject[-\s]?\d{3}\b', ' ', text, flags=re.IGNORECASE)
-    cleaned = re.sub(
-        r'\b(please|can you|analyze|analyse|check|review|scope|drift|in scope|out of scope|for|against|client request|draft|change request)\b',
-        ' ',
-        cleaned,
-        flags=re.IGNORECASE,
-    )
-    cleaned = re.sub(r'[^A-Za-z0-9]+', ' ', cleaned).strip()
-    return text.strip() if cleaned else None
+    return inline_request(text)
 
 
 def _summarize_tool_result(result):
@@ -702,7 +617,7 @@ def _summarize_tool_result(result):
 
 def _safe_event_payload(value):
     if isinstance(value, dict):
-        return {key: str(item)[:300] if key == 'arguments' else item for key, item in value.items()}
+        return value
     return {'raw': str(value)[:500]}
 
 
@@ -720,7 +635,7 @@ def _redacted_observation(observation):
             'analysis_id': analysis.get('analysis_id'),
             'project_id': analysis.get('project_id'),
             'classification': analysis.get('classification'),
-            'request_text': analysis.get('request_text', '')[:300],
+            'request_text': analysis.get('request_text', ''),
             'findings': [
                 {'category': item.get('category'), 'evidence': item.get('evidence'), 'explanation': item.get('explanation')}
                 for item in analysis.get('findings', [])[:5]
@@ -728,7 +643,7 @@ def _redacted_observation(observation):
         }
     draft = observation.get('draft')
     if draft:
-        payload['draft'] = {'draft_id': draft.get('draft_id'), 'status': draft.get('status'), 'subject': draft.get('subject'), 'body': draft.get('body', '')[:1000]}
+        payload['draft'] = {'draft_id': draft.get('draft_id'), 'status': draft.get('status'), 'subject': draft.get('subject'), 'body': draft.get('body', '')}
     error = observation.get('error')
     if error:
         payload['error'] = {'code': error.get('code')}
@@ -766,7 +681,9 @@ def _parse_openrouter_decision(data):
 
 
 def _usage_from_response(data, model):
-    usage = data.get('usage') or {}
+    usage = data.get('usage') or {} if isinstance(data, dict) else {}
+    if not isinstance(usage, dict):
+        usage = {}
     input_tokens = usage.get('prompt_tokens')
     output_tokens = usage.get('completion_tokens')
     response_cost = usage.get('cost')

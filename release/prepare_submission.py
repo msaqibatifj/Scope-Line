@@ -9,6 +9,10 @@ import argparse
 import json
 import re
 import zipfile
+import ipaddress
+import subprocess
+import os
+from xml.sax.saxutils import escape
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -18,7 +22,8 @@ REQUIRED = (
     'full_name', 'roll_number', 'class_section', 'university_email', 'github_username',
     'github_repository_url', 'final_commit_hash', 'interface_url', 'health_url',
     'arena_url', 'manifest_url', 'docs_url', 'default_model_provider',
-    'instructor_access_status',
+    'instructor_access_status', 'hosting_provider', 'example_input', 'expected_result',
+    'cold_start_limitations',
 )
 URL_FIELDS = ('github_repository_url', 'interface_url', 'health_url', 'arena_url', 'manifest_url', 'docs_url')
 INCLUDE = ('SUBMISSION.md', 'README.md', 'app', 'data', 'tests', 'evaluation', 'release', 'arena_manifest.json', 'requirements.txt', '.env.example', '.gitignore', '.dockerignore', 'render.yaml', 'Dockerfile', 'run.py', 'vercel.json', 'api')
@@ -30,7 +35,7 @@ def load_metadata(path: Path) -> dict[str, str]:
     if missing:
         raise SystemExit('Missing required metadata: ' + ', '.join(missing))
     values = {key: str(value).strip() for key, value in values.items()}
-    placeholders = [key for key, value in values.items() if 'PENDING_' in value or '.invalid' in value]
+    placeholders = [key for key, value in values.items() if re.search(r'PENDING_|\[|\]|YOUR[-_ ]|TODO|REPLACE_ME', value, re.I)]
     if placeholders:
         raise SystemExit('Replace placeholder metadata: ' + ', '.join(placeholders))
     roll = values['roll_number'].lower()
@@ -40,8 +45,19 @@ def load_metadata(path: Path) -> dict[str, str]:
         raise SystemExit('final_commit_hash must be a full Git commit hash')
     for field in URL_FIELDS:
         parsed = urlparse(values[field])
-        if parsed.scheme != 'https' or not parsed.netloc:
+        host = (parsed.hostname or '').lower().rstrip('.')
+        invalid_host = not host or '.' not in host or host == 'localhost' or host.endswith(('.localhost', '.local', '.invalid', '.example', '.test'))
+        try:
+            invalid_host = invalid_host or not ipaddress.ip_address(host).is_global
+        except ValueError:
+            pass
+        if parsed.scheme != 'https' or invalid_host or parsed.username or parsed.password:
             raise SystemExit(f'{field} must be a public HTTPS URL')
+    if not re.fullmatch(r'[^\s@]+@[^\s@]+\.[^\s@]+', values['university_email']):
+        raise SystemExit('university_email must be an email address')
+    if values['instructor_access_status'].lower() not in {'pending', 'invited', 'accepted', 'confirmed'}:
+        raise SystemExit('instructor_access_status must be pending, invited, accepted or confirmed')
+    values.setdefault('other_models', 'none')
     values['roll_number'] = roll
     return values
 
@@ -60,7 +76,7 @@ def summary(metadata: dict[str, str]) -> str:
         ('Repository access', 'instructor_access_status'), ('Public test results', None),
     ]
     lines = ['# ScopeLine submission summary', '']
-    fixed = {'Agent name': 'ScopeLine', 'Domain': 'Freelance scope drift monitoring', 'Public test results': 'evaluation/public_results.json'}
+    fixed = {'Agent name': 'ScopeLine', 'Domain': 'Freelance scope drift monitoring', 'Public test results': 'evaluation/current_local_results.json (local); evaluation/public_results.json (historical public); evaluation/current_public_verification.json (current availability)'}
     for label, key in rows:
         lines.append(f'- {label}: {metadata[key] if key else fixed[label]}')
     return '\n'.join(lines) + '\n'
@@ -74,46 +90,35 @@ def pdf_escape(value: str) -> str:
 
 
 def linked_pdf(path: Path, metadata: dict[str, str]) -> None:
-    # A deliberately small, standards-compliant one-page PDF with clickable URI annotations.
-    lines = [line[2:] for line in summary(metadata).splitlines() if line.startswith('- ')]
-    content = ['BT', '/F1 10 Tf', '50 760 Td']
-    for index, line in enumerate(lines):
-        if index:
-            content.append('0 -25 Td')
-        content.append(f'({pdf_escape(line[:150])}) Tj')
-    content.append('ET')
-    annotations = []
-    row_by_field = {}
-    for index, line in enumerate(lines):
-        for field in URL_FIELDS:
-            if metadata[field] in line:
-                row_by_field[field] = index
-    for field in URL_FIELDS:
-        url = metadata[field]
-        row = row_by_field[field]
-        baseline = 760 - row * 25
-        annotations.append(f'<< /Type /Annot /Subtype /Link /Rect [45 {baseline - 4} 550 {baseline + 11}] /Border [0 0 0] /A << /S /URI /URI ({pdf_escape(url)}) >> >>')
-    annotation_ids = range(6, 6 + len(annotations))
-    annots = ' '.join(f'{item} 0 R' for item in annotation_ids)
-    stream = '\n'.join(content)
-    objects = [
-        '<< /Type /Catalog /Pages 2 0 R >>',
-        '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
-        f'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R /Annots [{annots}] >>',
-        f'<< /Length {len(stream.encode())} >>\nstream\n{stream}\nendstream',
-        '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
-        *annotations,
-    ]
-    raw = bytearray(b'%PDF-1.4\n')
-    offsets = [0]
-    for number, value in enumerate(objects, 1):
-        offsets.append(len(raw))
-        raw.extend(f'{number} 0 obj\n{value}\nendobj\n'.encode())
-    start = len(raw)
-    raw.extend(f'xref\n0 {len(objects) + 1}\n0000000000 65535 f \n'.encode())
-    raw.extend(''.join(f'{offset:010d} 00000 n \n' for offset in offsets[1:]).encode())
-    raw.extend(f'trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{start}\n%%EOF\n'.encode())
-    path.write_bytes(raw)
+    import reportlab
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.platypus import SimpleDocTemplate, Paragraph
+    candidates = [Path(os.environ.get('SUBMISSION_FONT', 'missing.ttf')),
+                  Path('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'),
+                  Path('C:/Windows/Fonts/arial.ttf'), Path(reportlab.__file__).parent / 'fonts/Vera.ttf']
+    font = next((candidate for candidate in candidates if candidate.is_file()), None)
+    if font is None:
+        raise SystemExit('Set SUBMISSION_FONT to a Unicode TrueType font path.')
+    pdfmetrics.registerFont(TTFont('Submission', str(font)))
+    text = summary(metadata)
+    glyphs = pdfmetrics.getFont('Submission').face.charWidths
+    if any(ord(c) not in glyphs for c in text if not c.isspace()):
+        raise SystemExit('Submission font lacks a metadata character; set SUBMISSION_FONT to a font supporting your name.')
+    body = ParagraphStyle('SubmissionBody', fontName='Submission', fontSize=10, leading=15, spaceAfter=9, splitLongWords=True)
+    title = ParagraphStyle('SubmissionTitle', parent=body, fontSize=19, leading=25, spaceAfter=18)
+    story = [Paragraph('ScopeLine submission summary', title)]
+    urls = {metadata[field] for field in URL_FIELDS}
+    for line in text.splitlines():
+        if not line.startswith('- '):
+            continue
+        label, value = line[2:].split(': ', 1)
+        rendered = escape(value)
+        if value in urls:
+            rendered = f'<link href="{escape(value, {chr(34): "&quot;"})}" color="#175CD3">{rendered}</link>'
+        story.append(Paragraph(f'{escape(label)}: {rendered}', body))
+    SimpleDocTemplate(str(path), leftMargin=48, rightMargin=48, topMargin=48, bottomMargin=48, title='ScopeLine submission summary').build(story)
 
 
 def build_zip(path: Path, roll_number: str) -> None:
@@ -125,8 +130,8 @@ def build_zip(path: Path, roll_number: str) -> None:
             elif source.is_dir():
                 for child in source.rglob('*'):
                     blocked_parts = {'__pycache__', '.git', '.venv', 'venv', 'node_modules', '.pytest_cache'}
-                    blocked_names = {'.env', '.env.local'}
-                    if child.is_file() and not (blocked_parts & set(child.parts)) and child.name not in blocked_names and child.suffix not in {'.pyc', '.zip', '.pdf', '.log'}:
+                    secret_file = (child.name == '.env' or child.name.startswith('.env.') or re.search(r'credential|secret|token|private[-_]?key', child.name, re.I)) and child.name != '.env.example'
+                    if child.is_file() and not (blocked_parts & set(child.parts)) and not secret_file and child.suffix not in {'.pyc', '.zip', '.pdf', '.log', '.pem', '.key', '.p12'}:
                         archive.write(child, Path(roll_number) / child.relative_to(ROOT))
 
 
@@ -136,8 +141,18 @@ def main() -> None:
     parser.add_argument('--output-dir', type=Path, default=ROOT / 'dist')
     args = parser.parse_args()
     metadata = load_metadata(args.metadata)
+    try:
+        git = ['git', '-c', f'safe.directory={ROOT}']
+        revision = subprocess.check_output([*git, 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
+        dirty = subprocess.check_output([*git, 'status', '--porcelain', '--untracked-files=all'], cwd=ROOT, text=True).rstrip()
+    except (OSError, subprocess.CalledProcessError) as error:
+        raise SystemExit('Build the final release from its Git checkout with Git available.') from error
+    changed_files = [line[3:] for line in dirty.splitlines()]
+    if revision != metadata['final_commit_hash'] or any(name != 'SUBMISSION.md' for name in changed_files):
+        raise SystemExit('Commit final source first; only SUBMISSION.md may differ from the checkout matching final_commit_hash.')
     args.output_dir.mkdir(parents=True, exist_ok=True)
     markdown = summary(metadata)
+    # Generated metadata is added after the source commit to avoid a self-referential commit hash.
     (ROOT / 'SUBMISSION.md').write_text(markdown, encoding='utf-8')
     (args.output_dir / f'{metadata["roll_number"]}_submission.pdf').parent.mkdir(parents=True, exist_ok=True)
     linked_pdf(args.output_dir / f'{metadata["roll_number"]}_submission.pdf', metadata)

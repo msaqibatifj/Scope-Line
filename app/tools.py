@@ -106,10 +106,14 @@ class ScopeDriftTools:
                     explanation='The agreed revision allowance has been exhausted.',
                 ))
 
-            if findings:
+            if any(f.category in ('explicit_exclusion', 'revision_limit') for f in findings):
                 classification = 'scope_drift'
                 confidence = 'high'
                 suggested_action = 'Review a written change request with the client before accepting the added work.'
+            elif findings:
+                classification = 'ambiguous'
+                confidence = 'low'
+                suggested_action = 'Clarify each additional deliverable before deciding whether the agreement covers it.'
             elif matched_within:
                 findings.extend(ScopeFinding(
                     category='deliverable_match',
@@ -235,6 +239,10 @@ def _agreement_constraint_findings(project, request_text: str) -> list[ScopeFind
     lowered = request_text.lower().replace('-', ' ')
     findings: list[ScopeFinding] = []
     deliverables = ' '.join(project.agreed_deliverables).lower()
+    page_count = _nearby_number(lowered, ('page', 'pages'))
+    page_limit = _nearby_number(deliverables.replace('-', ' '), ('page', 'pages'))
+    if page_count is not None and page_limit is not None and page_count > page_limit:
+        findings.append(ScopeFinding(category='explicit_exclusion', evidence=f'{page_count:g} requested pages exceeds {page_limit:g} agreed pages', explanation='The requested page count exceeds the agreement limit.'))
     if any(term in lowered for term in ('photo', 'photograph', 'image')):
         count = _nearby_number(lowered, ('photo', 'photos', 'photograph', 'photographs', 'image', 'images'))
         limit = _nearby_number(deliverables, ('photo', 'photos', 'photograph', 'photographs', 'image', 'images'))
@@ -265,17 +273,14 @@ def _agreement_constraint_findings(project, request_text: str) -> list[ScopeFind
 
 
 def _nearby_number(text: str, nouns: tuple[str, ...]) -> float | None:
-    words = '|'.join(nouns)
-    matches = [
-        re_search(rf'\b(\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|twenty|hundred)(?:\s+(one|two|three|four|five|six|seven|eight|nine))?\b(?:\W+\w+){{0,3}}?\W+\b(?:{words})\b', text),
-        re_search(rf'\b(?:{words})\b(?:\W+\w+){{0,3}}?\W+\b(\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|twenty|hundred)\b', text),
-    ]
-    for match in matches:
-        if match:
-            base = _number_value(match.group(1))
-            suffix = _number_value(match.group(2)) if match.lastindex and match.lastindex >= 2 and match.group(2) else 0
-            return base + suffix if base is not None else None
-    return None
+    words = '|'.join(re.escape(noun) for noun in nouns)
+    number = r'(\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred)(?:[ -]+(one|two|three|four|five|six|seven|eight|nine))?'
+    matches = list(re.finditer(rf'\b{number}\b(?:\s+(?!plus\b|and\b|or\b)\w+){{0,3}}?\s+\b(?:{words})\b', text, re.I))
+    values = [_number_value(m.group(1)) + (_number_value(m.group(2)) if m.group(2) else 0) for m in matches]
+    if values:
+        return sum(values) if re.search(r'\b(plus|and|also|additional)\b', text) else max(values)
+    match = re.search(rf'\b(?:{words})\b\s*[:=]?\s*{number}\b', text, re.I)
+    return _number_value(match.group(1)) + (_number_value(match.group(2)) if match.group(2) else 0) if match else None
 
 
 def _duration_minutes(text: str) -> float | None:
@@ -290,11 +295,11 @@ def _contains_unmatched_deliverable(request_text: str, within_signals: list[str]
     clauses = re.split(r'\s+(?:and|plus|also)\s+|[;,]', request_text.lower())
     material_terms = {'app', 'mobile', 'dashboard', 'api', 'integration', 'animation', 'video', 'clip', 'website', 'page', 'photograph', 'photo', 'episode', 'music', 'research', 'copywriting'}
     for clause in clauses:
-        words = set(re.findall(r'[a-z]{4,}', clause))
+        words = set(re.findall(r'[a-z]{3,}', clause))
         if not words or not (words & material_terms):
             continue
-        signals = ' '.join([*within_signals, *outside_signals])
-        if not any(word in signals for word in words):
+        signals = set(re.findall(r'[a-z]{3,}', ' '.join([*within_signals, *outside_signals])))
+        if (words & material_terms) - signals:
             return True
     return False
 
@@ -304,6 +309,10 @@ def _number_value(value: str) -> float | None:
         'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
         'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10,
         'twenty': 20, 'hundred': 100,
+        'eleven': 11, 'twelve': 12, 'thirteen': 13, 'fourteen': 14, 'fifteen': 15,
+        'sixteen': 16, 'seventeen': 17, 'eighteen': 18, 'nineteen': 19,
+        'thirty': 30, 'forty': 40, 'fifty': 50, 'sixty': 60, 'seventy': 70,
+        'eighty': 80, 'ninety': 90,
     }
     try:
         return float(value)

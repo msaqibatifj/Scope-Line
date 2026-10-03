@@ -1,0 +1,102 @@
+{
+  "generated_at": "2026-10-03T19:00:57.884871+00:00",
+  "url": "https://scope-line.vercel.app",
+  "scope": "Current deployed version, before local repairs are redeployed",
+  "checks": [
+    {
+      "method": "GET",
+      "path": "/",
+      "http_status": 200,
+      "response": "HTML response"
+    },
+    {
+      "method": "GET",
+      "path": "/health",
+      "http_status": 200,
+      "response": {
+        "status": "ok",
+        "implementation": "scopeline-v1"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/arena/manifest",
+      "http_status": 200,
+      "response": {
+        "arena_version": "0.1",
+        "agent_name": "ScopeLine",
+        "domain": "Freelance scope drift monitoring",
+        "description": "Compares client requests with project agreements, explains scope drift, and prepares private change-request drafts for freelancer review.",
+        "endpoint": "/arena/run",
+        "health_endpoint": "/health",
+        "implementation": "scopeline-v1",
+        "fault_types": [
+          "none",
+          "tool_timeout",
+          "malformed_tool_output",
+          "invalid_agent_decision"
+        ],
+        "limits": {
+          "max_steps": 6,
+          "max_tool_retries": 2,
+          "run_timeout_seconds": 40,
+          "max_response_bytes": 50000
+        },
+        "autonomy_boundary": {
+          "allowed": [
+            "read synthetic project records",
+            "classify scope drift",
+            "prepare private drafts"
+          ],
+          "requires_approval_or_blocked": [
+            "contact clients",
+            "change agreements",
+            "issue invoices",
+            "charge clients"
+          ]
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/models",
+      "http_status": 200,
+      "response": {
+        "models": [
+          "local-scripted",
+          "gemini-3.1-flash-lite",
+          "gemini-3.5-flash-lite",
+          "groq/qwen3.8-27b"
+        ],
+        "default": "gemini-3.1-flash-lite",
+        "readiness": {
+          "configured_default": "gemini-3.1-flash-lite",
+          "ready": true,
+          "reason": "live_model_configured",
+          "live_enabled": true,
+          "fallback_models": [
+            "groq/qwen3.8-27b"
+          ],
+          "model_fallback_enabled": true,
+          "fallback_model": "local-scripted",
+          "fallback_enabled": false
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/docs",
+      "http_status": 200,
+      "response": "HTML response"
+    }
+  ],
+  "arena_post_observation": {
+    "task": "List projects",
+    "http_status": 200,
+    "status": "failed",
+    "stop_reason": "model_call_failed",
+    "provider_http_status": 401,
+    "model": "gemini-3.1-flash-lite",
+    "note": "Observed earlier in this audit. Production authentication was excluded from the repair request."
+  }
+}

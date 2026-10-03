@@ -54,7 +54,7 @@ async def execute(request, history=None, model='unconfigured', sandbox=None):
         result = ArenaResponse(request_id=request.request_id, status='failed',
             final_response='Response exceeded the size limit; reduce requested output or inspect the tool observations.',
             stop_reason='response_too_large', steps=result.steps, tool_calls=result.tool_calls,
-            errors=result.errors + [{'type': 'response_size', 'message': 'Response exceeded 50,000 bytes.'}],
-            events=result.events, metrics=result.metrics)
+            errors=[{'type': 'response_size', 'message': 'Response exceeded 50,000 bytes; oversized trace and errors omitted.', 'omitted_errors': len(result.errors)}],
+            events=[{'step': result.steps, 'event': 'trace_omitted', 'reason': 'response_size_budget', 'omitted_events': len(result.events)}], metrics=result.metrics)
     log.info('request=%s status=%s steps=%s', request.request_id, result.status, result.steps)
     return result

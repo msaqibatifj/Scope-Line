@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     host: str = '127.0.0.1'
     port: int = 8000
     model_provider: str = 'gemini'
-    model_name: str = 'gemini-3.1-flash-lite'
+    model_name: str = 'gemini-3.5-flash-lite'
     allowed_models: str = 'local-scripted,gemini-3.1-flash-lite,gemini-3.5-flash-lite,groq/qwen3.8-27b'
     fallback_models: str = 'groq/qwen3.8-27b'
     allow_model_fallback: bool = True

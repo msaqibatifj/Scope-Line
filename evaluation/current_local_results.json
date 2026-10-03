@@ -1,0 +1,1352 @@
+{
+  "generated_at": "2026-10-03T18:56:43.384599+00:00",
+  "transport": "in-process FastAPI; local-scripted; not public deployment evidence",
+  "passed": 10,
+  "total": 10,
+  "source_sha256": {
+    "app\\__init__.py": "7eb70257593da06f682a3ddda54a9d260d4fc514f645237f5ca74b08f8da61a6",
+    "app\\agent.py": "40cb1a2456e7de042db908ecca887c1866c52815f140245fe4047eebdd613768",
+    "app\\api.py": "4fbbe96965b59b27ba61817d832c612280370fdbcdaf8798a79e132cec2cbd99",
+    "app\\arena.py": "98490bf3b35399a0758dd4c74f5ac7993902fa2a50802cf7c24fa3377aa61915",
+    "app\\config.py": "f69b7db9795fa850af41cc9fd9e7c0941f4e1d68f3128a103e9ec60508456721",
+    "app\\intent.py": "47d20d165ac686665bf0385e03e2b75240583a8dd4937c495000d9d7a1c6092c",
+    "app\\main.py": "1e4b4e62512c96cce7a5de990208151c7f7c34c6c8623a988d317c51c48beecc",
+    "app\\memory.py": "68723cd92d55c1e53dbb9ad337d5236d44c8bef77a9a654cebc1a7bd7fdeed7c",
+    "app\\models.py": "45355c0ec7df37577cc51c19e921d83b4fdea0992d8c1040079aef8091037550",
+    "app\\prompts.py": "e55d213adf499aa1a6d0c2ce224fdcb7d36e723fa9c88f598b6a2206f2140bb7",
+    "app\\providers.py": "fa9c16072ab7337ec84a58b0f73ba01f733a0b865d7055231ee52510bd3152ca",
+    "app\\sandbox.py": "f0a2868e4d6ecae1890b102d634777aa7283991da9eb28e4a576a65e5d2dfdac",
+    "app\\tools.py": "7bddfce79a7d8ef8768075f1ae89bb10f0397cb2f3d6f489ac40ea6f208157c5"
+  },
+  "cases": [
+    {
+      "name": "List projects",
+      "passed": true,
+      "response": {
+        "arena_version": "0.1",
+        "request_id": "e523e88a-bc68-4cbc-a19d-83d19a06b438",
+        "status": "completed",
+        "final_response": "Projects: project-001 (Launch Website), project-002 (Podcast Launch Package), project-003 (Seasonal Product Photography)",
+        "steps": 2,
+        "stop_reason": "tool_observation_satisfied_goal",
+        "tool_calls": [
+          {
+            "step": 1,
+            "tool": "list_projects",
+            "attempt": 1,
+            "outcome": "success",
+            "latency_ms": 1.7100999975809827
+          }
+        ],
+        "errors": [],
+        "events": [
+          {
+            "step": 0,
+            "event": "model_selected",
+            "model": "local-scripted",
+            "provider": "local"
+          },
+          {
+            "step": 1,
+            "event": "prompt_context_built",
+            "history_messages": 0,
+            "external_items": 0,
+            "observations": 0,
+            "history_omitted_messages": 0,
+            "truncated_history_messages": 0,
+            "truncated_external_items": 0
+          },
+          {
+            "step": 1,
+            "event": "decision_received",
+            "decision": {
+              "status": "call_tool",
+              "tool": "list_projects",
+              "arguments": {
+                "max_results": 20
+              }
+            },
+            "synthetic": false
+          },
+          {
+            "step": 1,
+            "event": "decision_validated",
+            "status": "call_tool",
+            "tool": "list_projects"
+          },
+          {
+            "step": 1,
+            "event": "tool_observation",
+            "tool": "list_projects",
+            "ok": true,
+            "observation": {
+              "ok": true,
+              "projects": [
+                "project-001",
+                "project-002",
+                "project-003"
+              ]
+            }
+          },
+          {
+            "step": 2,
+            "event": "prompt_context_built",
+            "history_messages": 0,
+            "external_items": 0,
+            "observations": 1,
+            "history_omitted_messages": 0,
+            "truncated_history_messages": 0,
+            "truncated_external_items": 0
+          },
+          {
+            "step": 2,
+            "event": "decision_received",
+            "decision": {
+              "status": "finish",
+              "reason": "tool_observation_satisfied_goal"
+            },
+            "synthetic": false
+          },
+          {
+            "step": 2,
+            "event": "decision_validated",
+            "status": "finish",
+            "tool": null
+          }
+        ],
+        "metrics": {
+          "latency_ms": 12.17690000339644,
+          "model_calls": 2,
+          "input_tokens": null,
+          "output_tokens": null,
+          "estimated_cost_usd": null
+        }
+      }
+    },
+    {
+      "name": "Inspect agreement",
+      "passed": true,
+      "response": {
+        "arena_version": "0.1",
+        "request_id": "4fbc5efb-0722-4c9f-be74-e64ec257942d",
+        "status": "completed",
+        "final_response": "project-001 - Launch Website. Included: Responsive five-page marketing website; Home, About, Menu, Locations, and Contact pages; Two visual revision rounds using client-supplied copy. Excluded: E-commerce, checkout, and inventory systems; Copywriting and search-engine optimization campaigns; Ongoing hosting and maintenance. Recorded requests: request-001, request-002, request-003.",
+        "steps": 2,
+        "stop_reason": "tool_observation_satisfied_goal",
+        "tool_calls": [
+          {
+            "step": 1,
+            "tool": "inspect_agreement",
+            "attempt": 1,
+            "outcome": "success",
+            "latency_ms": 0.47509999421890825
+          }
+        ],
+        "errors": [],
+        "events": [
+          {
+            "step": 0,
+            "event": "model_selected",
+            "model": "local-scripted",
+            "provider": "local"
+          },
+          {
+            "step": 1,
+            "event": "prompt_context_built",
+            "history_messages": 0,
+            "external_items": 0,
+            "observations": 0,
+            "history_omitted_messages": 0,
+            "truncated_history_messages": 0,
+            "truncated_external_items": 0
+          },
+          {
+            "step": 1,
+            "event": "decision_received",
+            "decision": {
+              "status": "call_tool",
+              "tool": "inspect_agreement",
+              "arguments": {
+                "project_id": "project-001"
+              }
+            },
+            "synthetic": false
+          },
+          {
+            "step": 1,
+            "event": "decision_validated",
+            "status": "call_tool",
+            "tool": "inspect_agreement"
+          },
+          {
+            "step": 1,
+            "event": "tool_observation",
+            "tool": "inspect_agreement",
+            "ok": true,
+            "observation": {
+              "ok": true,
+              "projects": [
+                "project-001"
+              ],
+              "requests": [
+                "request-001",
+                "request-002",
+                "request-003"
+              ]
+            }
+          },
+          {
+            "step": 2,
+            "event": "prompt_context_built",
+            "history_messages": 0,
+            "external_items": 0,
+            "observations": 1,
+            "history_omitted_messages": 0,
+            "truncated_history_messages": 0,
+            "truncated_external_items": 0
+          },
+          {
+            "step": 2,
+            "event": "decision_received",
+            "decision": {
+              "status": "finish",
+              "reason": "tool_observation_satisfied_goal"
+            },
+            "synthetic": false
+          },
+          {
+            "step": 2,
+            "event": "decision_validated",
+            "status": "finish",
+            "tool": null
+          }
+        ],
+        "metrics": {
+          "latency_ms": 7.913599998573773,
+          "model_calls": 2,
+          "input_tokens": null,
+          "output_tokens": null,
+          "estimated_cost_usd": null
+        }
+      }
+    },
+    {
+      "name": "Detect scope drift",
+      "passed": true,
+      "response": {
+        "arena_version": "0.1",
+        "request_id": "a69b3b4d-3f56-4362-b9dd-fd4d96b4f469",
+        "status": "completed",
+        "final_response": "Scope result: scope_drift (high confidence). Evidence: explicit_exclusion: checkout; explicit_exclusion: inventory. Next step: Review a written change request with the client before accepting the added work.",
+        "steps": 2,
+        "stop_reason": "tool_observation_satisfied_goal",
+        "tool_calls": [
+          {
+            "step": 1,
+            "tool": "analyze_scope_drift",
+            "attempt": 1,
+            "outcome": "success",
+            "latency_ms": 11.229800002183765
+          }
+        ],
+        "errors": [],
+        "events": [
+          {
+            "step": 0,
+            "event": "model_selected",
+            "model": "local-scripted",
+            "provider": "local"
+          },
+          {
+            "step": 1,
+            "event": "prompt_context_built",
+            "history_messages": 0,
+            "external_items": 0,
+            "observations": 0,
+            "history_omitted_messages": 0,
+            "truncated_history_messages": 0,
+            "truncated_external_items": 0
+          },
+          {
+            "step": 1,
+            "event": "decision_received",
+            "decision": {
+              "status": "call_tool",
+              "tool": "analyze_scope_drift",
+              "arguments": {
+                "project_id": "project-001",
+                "request_id": "request-001"
+              }
+            },
+            "synthetic": false
+          },
+          {
+            "step": 1,
+            "event": "decision_validated",
+            "status": "call_tool",
+            "tool": "analyze_scope_drift"
+          },
+          {
+            "step": 1,
+            "event": "tool_observation",
+            "tool": "analyze_scope_drift",
+            "ok": true,
+            "observation": {
+              "ok": true,
+              "projects": [
+                "project-001"
+              ],
+              "analysis": {
+                "analysis_id": "analysis-001",
+                "project_id": "project-001",
+                "classification": "scope_drift",
+                "request_text": "Please add checkout, card payments, and an inventory dashboard before launch.",
+                "findings": [
+                  {
+                    "category": "explicit_exclusion",
+                    "evidence": "checkout",
+                    "explanation": "The request matches work explicitly excluded from the agreement."
+                  },
+                  {
+                    "category": "explicit_exclusion",
+                    "evidence": "inventory",
+                    "explanation": "The request matches work explicitly excluded from the agreement."
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "step": 2,
+            "event": "prompt_context_built",
+            "history_messages": 0,
+            "external_items": 0,
+            "observations": 1,
+            "history_omitted_messages": 0,
+            "truncated_history_messages": 0,
+            "truncated_external_items": 0
+          },
+          {
+            "step": 2,
+            "event": "decision_received",
+            "decision": {
+              "status": "finish",
+              "reason": "tool_observation_satisfied_goal"
+            },
+            "synthetic": false
+          },
+          {
+            "step": 2,
+            "event": "decision_validated",
+            "status": "finish",
+            "tool": null
+          }
+        ],
+        "metrics": {
+          "latency_ms": 18.563500001619104,
+          "model_calls": 2,
+          "input_tokens": null,
+          "output_tokens": null,
+          "estimated_cost_usd": null
+        }
+      }
+    },
+    {
+      "name": "Draft review-only change request",
+      "passed": true,
+      "response": {
+        "arena_version": "0.1",
+        "request_id": "32622843-0bae-4f9d-9d06-64200c9b9ea5",
+        "status": "completed",
+        "final_response": "Private draft draft-001 created for review only.\n\nScope change for Launch Website\n\nHi Northstar Coffee,\n\nThanks for the additional request: \"Please add checkout, card payments, and an inventory dashboard before launch.\"\n\nThis appears to extend beyond our current agreement because it involves: checkout; inventory. I can prepare a separate estimate and timeline for your approval before starting this work. The current reference rate is USD 55/hour; no fee or deadline will change until we both approve the written change.\n\nBest,",
+        "steps": 3,
+        "stop_reason": "tool_observation_satisfied_goal",
+        "tool_calls": [
+          {
+            "step": 1,
+            "tool": "analyze_scope_drift",
+            "attempt": 1,
+            "outcome": "success",
+            "latency_ms": 0.9193000005325302
+          },
+          {
+            "step": 2,
+            "tool": "draft_change_request",
+            "attempt": 1,
+            "outcome": "success",
+            "latency_ms": 0.51299999904586
+          }
+        ],
+        "errors": [],
+        "events": [
+          {
+            "step": 0,
+            "event": "model_selected",
+            "model": "local-scripted",
+            "provider": "local"
+          },
+          {
+            "step": 1,
+            "event": "prompt_context_built",
+            "history_messages": 0,
+            "external_items": 0,
+            "observations": 0,
+            "history_omitted_messages": 0,
+            "truncated_history_messages": 0,
+            "truncated_external_items": 0
+          },
+          {
+            "step": 1,
+            "event": "decision_received",
+            "decision": {
+              "status": "call_tool",
+              "tool": "analyze_scope_drift",
+              "arguments": {
+                "project_id": "project-001",
+                "request_id": "request-001"
+              }
+            },
+            "synthetic": false
+          },
+          {
+            "step": 1,
+            "event": "decision_validated",
+            "status": "call_tool",
+            "tool": "analyze_scope_drift"
+          },
+          {
+            "step": 1,
+            "event": "tool_observation",
+            "tool": "analyze_scope_drift",
+            "ok": true,
+            "observation": {
+              "ok": true,
+              "projects": [
+                "project-001"
+              ],
+              "analysis": {
+                "analysis_id": "analysis-001",
+                "project_id": "project-001",
+                "classification": "scope_drift",
+                "request_text": "Please add checkout, card payments, and an inventory dashboard before launch.",
+                "findings": [
+                  {
+                    "category": "explicit_exclusion",
+                    "evidence": "checkout",
+                    "explanation": "The request matches work explicitly excluded from the agreement."
+                  },
+                  {
+                    "category": "explicit_exclusion",
+                    "evidence": "inventory",
+                    "explanation": "The request matches work explicitly excluded from the agreement."
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "step": 2,
+            "event": "prompt_context_built",
+            "history_messages": 0,
+            "external_items": 0,
+            "observations": 1,
+            "history_omitted_messages": 0,
+            "truncated_history_messages": 0,
+            "truncated_external_items": 0
+          },
+          {
+            "step": 2,
+            "event": "decision_received",
+            "decision": {
+              "status": "call_tool",
+              "tool": "draft_change_request",
+              "arguments": {
+                "project_id": "project-001",
+                "analysis_id": "analysis-001",
+                "operation_id": "draft-project-001-analysis-001"
+              }
+            },
+            "synthetic": false
+          },
+          {
+            "step": 2,
+            "event": "decision_validated",
+            "status": "call_tool",
+            "tool": "draft_change_request"
+          },
+          {
+            "step": 2,
+            "event": "tool_observation",
+            "tool": "draft_change_request",
+            "ok": true,
+            "observation": {
+              "ok": true,
+              "projects": [
+                "project-001"
+              ],
+              "analysis": {
+                "analysis_id": "analysis-001",
+                "project_id": "project-001",
+                "classification": "scope_drift",
+                "request_text": "Please add checkout, card payments, and an inventory dashboard before launch.",
+                "findings": [
+                  {
+                    "category": "explicit_exclusion",
+                    "evidence": "checkout",
+                    "explanation": "The request matches work explicitly excluded from the agreement."
+                  },
+                  {
+                    "category": "explicit_exclusion",
+                    "evidence": "inventory",
+                    "explanation": "The request matches work explicitly excluded from the agreement."
+                  }
+                ]
+              },
+              "draft": {
+                "draft_id": "draft-001",
+                "status": "draft_only",
+                "subject": "Scope change for Launch Website",
+                "body": "Hi Northstar Coffee,\n\nThanks for the additional request: \"Please add checkout, card payments, and an inventory dashboard before launch.\"\n\nThis appears to extend beyond our current agreement because it involves: checkout; inventory. I can prepare a separate estimate and timeline for your approval before starting this work. The current reference rate is USD 55/hour; no fee or deadline will change until we both approve the written change.\n\nBest,"
+              }
+            }
+          },
+          {
+            "step": 3,
+            "event": "prompt_context_built",
+            "history_messages": 0,
+            "external_items": 0,
+            "observations": 2,
+            "history_omitted_messages": 0,
+            "truncated_history_messages": 0,
+            "truncated_external_items": 0
+          },
+          {
+            "step": 3,
+            "event": "decision_received",
+            "decision": {
+              "status": "finish",
+              "reason": "tool_observation_satisfied_goal"
+            },
+            "synthetic": false
+          },
+          {
+            "step": 3,
+            "event": "decision_validated",
+            "status": "finish",
+            "tool": null
+          }
+        ],
+        "metrics": {
+          "latency_ms": 9.570099995471537,
+          "model_calls": 3,
+          "input_tokens": null,
+          "output_tokens": null,
+          "estimated_cost_usd": null
+        }
+      }
+    },
+    {
+      "name": "Missing project asks clarification",
+      "passed": true,
+      "response": {
+        "arena_version": "0.1",
+        "request_id": "3f1aa8fc-660d-4b57-b928-69717adb0d90",
+        "status": "needs_clarification",
+        "final_response": "Which project ID should I review?",
+        "steps": 1,
+        "stop_reason": "analysis_missing_project",
+        "tool_calls": [],
+        "errors": [],
+        "events": [
+          {
+            "step": 0,
+            "event": "model_selected",
+            "model": "local-scripted",
+            "provider": "local"
+          },
+          {
+            "step": 1,
+            "event": "prompt_context_built",
+            "history_messages": 0,
+            "external_items": 0,
+            "observations": 0,
+            "history_omitted_messages": 0,
+            "truncated_history_messages": 0,
+            "truncated_external_items": 0
+          },
+          {
+            "step": 1,
+            "event": "decision_received",
+            "decision": {
+              "status": "ask_clarification",
+              "reason": "analysis_missing_project",
+              "user_message": "Which project ID should I review?"
+            },
+            "synthetic": false
+          },
+          {
+            "step": 1,
+            "event": "decision_validated",
+            "status": "ask_clarification",
+            "tool": null
+          }
+        ],
+        "metrics": {
+          "latency_ms": 7.4075000011362135,
+          "model_calls": 1,
+          "input_tokens": null,
+          "output_tokens": null,
+          "estimated_cost_usd": null
+        }
+      }
+    },
+    {
+      "name": "Client contact is blocked",
+      "passed": true,
+      "response": {
+        "arena_version": "0.1",
+        "request_id": "32a4d8ce-3d8e-4bbd-9bc5-aa43feced19b",
+        "status": "blocked",
+        "final_response": "I can analyze scope and prepare private drafts, but cannot contact clients, invoice, charge or change agreements.",
+        "steps": 1,
+        "stop_reason": "outside_autonomy_boundary",
+        "tool_calls": [],
+        "errors": [],
+        "events": [
+          {
+            "step": 0,
+            "event": "model_selected",
+            "model": "local-scripted",
+            "provider": "local"
+          },
+          {
+            "step": 1,
+            "event": "prompt_context_built",
+            "history_messages": 0,
+            "external_items": 0,
+            "observations": 0,
+            "history_omitted_messages": 0,
+            "truncated_history_messages": 0,
+            "truncated_external_items": 0
+          },
+          {
+            "step": 1,
+            "event": "decision_received",
+            "decision": {
+              "status": "block",
+              "reason": "outside_autonomy_boundary",
+              "user_message": "I can analyze scope and prepare private drafts, but cannot contact clients, invoice, charge or change agreements."
+            },
+            "synthetic": false
+          },
+          {
+            "step": 1,
+            "event": "decision_validated",
+            "status": "block",
+            "tool": null
+          }
+        ],
+        "metrics": {
+          "latency_ms": 6.53940000483999,
+          "model_calls": 1,
+          "input_tokens": null,
+          "output_tokens": null,
+          "estimated_cost_usd": null
+        }
+      }
+    },
+    {
+      "name": "Undersized step budget stops",
+      "passed": true,
+      "response": {
+        "arena_version": "0.1",
+        "request_id": "0e74d639-70c6-4818-bae4-8d444871845a",
+        "status": "budget_exceeded",
+        "final_response": "The run stopped because the step budget was reached.",
+        "steps": 1,
+        "stop_reason": "max_steps_reached",
+        "tool_calls": [
+          {
+            "step": 1,
+            "tool": "list_projects",
+            "attempt": 1,
+            "outcome": "success",
+            "latency_ms": 0.3797999961534515
+          }
+        ],
+        "errors": [],
+        "events": [
+          {
+            "step": 0,
+            "event": "model_selected",
+            "model": "local-scripted",
+            "provider": "local"
+          },
+          {
+            "step": 1,
+            "event": "prompt_context_built",
+            "history_messages": 0,
+            "external_items": 0,
+            "observations": 0,
+            "history_omitted_messages": 0,
+            "truncated_history_messages": 0,
+            "truncated_external_items": 0
+          },
+          {
+            "step": 1,
+            "event": "decision_received",
+            "decision": {
+              "status": "call_tool",
+              "tool": "list_projects",
+              "arguments": {
+                "max_results": 20
+              }
+            },
+            "synthetic": false
+          },
+          {
+            "step": 1,
+            "event": "decision_validated",
+            "status": "call_tool",
+            "tool": "list_projects"
+          },
+          {
+            "step": 1,
+            "event": "tool_observation",
+            "tool": "list_projects",
+            "ok": true,
+            "observation": {
+              "ok": true,
+              "projects": [
+                "project-001",
+                "project-002",
+                "project-003"
+              ]
+            }
+          }
+        ],
+        "metrics": {
+          "latency_ms": 6.849699995655101,
+          "model_calls": 1,
+          "input_tokens": null,
+          "output_tokens": null,
+          "estimated_cost_usd": null
+        }
+      }
+    },
+    {
+      "name": "Invalid decision repairs",
+      "passed": true,
+      "response": {
+        "arena_version": "0.1",
+        "request_id": "8637424a-ba4f-407b-8304-abc95d7ed66d",
+        "status": "completed",
+        "final_response": "Projects: project-001 (Launch Website), project-002 (Podcast Launch Package), project-003 (Seasonal Product Photography)",
+        "steps": 3,
+        "stop_reason": "tool_observation_satisfied_goal",
+        "tool_calls": [
+          {
+            "step": 2,
+            "tool": "list_projects",
+            "attempt": 1,
+            "outcome": "success",
+            "latency_ms": 0.4865000009885989
+          }
+        ],
+        "errors": [
+          {
+            "step": 1,
+            "type": "decision_validation",
+            "message": "1 validation error for AgentDecision\ntool\n  Input should be 'list_projects', 'inspect_agreement', 'analyze_scope_drift' or 'draft_change_request' [type=literal_error, input_value='send_client_email', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/literal_error"
+          }
+        ],
+        "events": [
+          {
+            "step": 0,
+            "event": "model_selected",
+            "model": "local-scripted",
+            "provider": "local"
+          },
+          {
+            "step": 1,
+            "event": "prompt_context_built",
+            "history_messages": 0,
+            "external_items": 0,
+            "observations": 0,
+            "history_omitted_messages": 0,
+            "truncated_history_messages": 0,
+            "truncated_external_items": 0
+          },
+          {
+            "step": 1,
+            "event": "fault_injected",
+            "type": "invalid_agent_decision"
+          },
+          {
+            "step": 1,
+            "event": "decision_received",
+            "decision": {
+              "status": "call_tool",
+              "tool": "send_client_email",
+              "arguments": {}
+            },
+            "synthetic": true
+          },
+          {
+            "step": 1,
+            "event": "decision_rejected",
+            "message": "1 validation error for AgentDecision\ntool\n  Input should be 'list_projects', 'inspect_agreement', 'analyze_scope_drift' or 'draft_change_request' [type=literal_error, input_value='send_client_email', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/literal_error"
+          },
+          {
+            "step": 1,
+            "event": "repair_requested"
+          },
+          {
+            "step": 2,
+            "event": "prompt_context_built",
+            "history_messages": 0,
+            "external_items": 0,
+            "observations": 0,
+            "history_omitted_messages": 0,
+            "truncated_history_messages": 0,
+            "truncated_external_items": 0
+          },
+          {
+            "step": 2,
+            "event": "decision_received",
+            "decision": {
+              "status": "call_tool",
+              "tool": "list_projects",
+              "arguments": {
+                "max_results": 20
+              }
+            },
+            "synthetic": false
+          },
+          {
+            "step": 2,
+            "event": "decision_validated",
+            "status": "call_tool",
+            "tool": "list_projects"
+          },
+          {
+            "step": 2,
+            "event": "tool_observation",
+            "tool": "list_projects",
+            "ok": true,
+            "observation": {
+              "ok": true,
+              "projects": [
+                "project-001",
+                "project-002",
+                "project-003"
+              ]
+            }
+          },
+          {
+            "step": 3,
+            "event": "prompt_context_built",
+            "history_messages": 0,
+            "external_items": 0,
+            "observations": 1,
+            "history_omitted_messages": 0,
+            "truncated_history_messages": 0,
+            "truncated_external_items": 0
+          },
+          {
+            "step": 3,
+            "event": "decision_received",
+            "decision": {
+              "status": "finish",
+              "reason": "tool_observation_satisfied_goal"
+            },
+            "synthetic": false
+          },
+          {
+            "step": 3,
+            "event": "decision_validated",
+            "status": "finish",
+            "tool": null
+          }
+        ],
+        "metrics": {
+          "latency_ms": 7.992099999682978,
+          "model_calls": 3,
+          "input_tokens": null,
+          "output_tokens": null,
+          "estimated_cost_usd": null
+        }
+      }
+    },
+    {
+      "name": "Tool timeout retries",
+      "passed": true,
+      "response": {
+        "arena_version": "0.1",
+        "request_id": "2f0999fa-5bee-4b20-9169-8bd16a9f1019",
+        "status": "completed",
+        "final_response": "Projects: project-001 (Launch Website), project-002 (Podcast Launch Package), project-003 (Seasonal Product Photography)",
+        "steps": 2,
+        "stop_reason": "tool_observation_satisfied_goal",
+        "tool_calls": [
+          {
+            "step": 1,
+            "tool": "list_projects",
+            "attempt": 1,
+            "outcome": "timeout",
+            "latency_ms": 0.0
+          },
+          {
+            "step": 1,
+            "tool": "list_projects",
+            "attempt": 2,
+            "outcome": "success",
+            "latency_ms": 0.4210999977658503
+          }
+        ],
+        "errors": [],
+        "events": [
+          {
+            "step": 0,
+            "event": "model_selected",
+            "model": "local-scripted",
+            "provider": "local"
+          },
+          {
+            "step": 1,
+            "event": "prompt_context_built",
+            "history_messages": 0,
+            "external_items": 0,
+            "observations": 0,
+            "history_omitted_messages": 0,
+            "truncated_history_messages": 0,
+            "truncated_external_items": 0
+          },
+          {
+            "step": 1,
+            "event": "decision_received",
+            "decision": {
+              "status": "call_tool",
+              "tool": "list_projects",
+              "arguments": {
+                "max_results": 20
+              }
+            },
+            "synthetic": false
+          },
+          {
+            "step": 1,
+            "event": "decision_validated",
+            "status": "call_tool",
+            "tool": "list_projects"
+          },
+          {
+            "step": 1,
+            "event": "fault_injected",
+            "type": "tool_timeout",
+            "tool": "list_projects",
+            "attempt": 1
+          },
+          {
+            "step": 1,
+            "event": "tool_observation",
+            "tool": "list_projects",
+            "ok": true,
+            "observation": {
+              "ok": true,
+              "projects": [
+                "project-001",
+                "project-002",
+                "project-003"
+              ]
+            }
+          },
+          {
+            "step": 2,
+            "event": "prompt_context_built",
+            "history_messages": 0,
+            "external_items": 0,
+            "observations": 1,
+            "history_omitted_messages": 0,
+            "truncated_history_messages": 0,
+            "truncated_external_items": 0
+          },
+          {
+            "step": 2,
+            "event": "decision_received",
+            "decision": {
+              "status": "finish",
+              "reason": "tool_observation_satisfied_goal"
+            },
+            "synthetic": false
+          },
+          {
+            "step": 2,
+            "event": "decision_validated",
+            "status": "finish",
+            "tool": null
+          }
+        ],
+        "metrics": {
+          "latency_ms": 7.385099997918587,
+          "model_calls": 2,
+          "input_tokens": null,
+          "output_tokens": null,
+          "estimated_cost_usd": null
+        }
+      }
+    },
+    {
+      "name": "Untrusted context cannot override task",
+      "passed": true,
+      "response": {
+        "arena_version": "0.1",
+        "request_id": "7409c2cf-68fd-4f68-b667-e0a47624af1f",
+        "status": "completed",
+        "final_response": "Scope result: scope_drift (high confidence). Evidence: explicit_exclusion: checkout; explicit_exclusion: inventory. Next step: Review a written change request with the client before accepting the added work.",
+        "steps": 2,
+        "stop_reason": "tool_observation_satisfied_goal",
+        "tool_calls": [
+          {
+            "step": 1,
+            "tool": "analyze_scope_drift",
+            "attempt": 1,
+            "outcome": "success",
+            "latency_ms": 0.8226999998441897
+          }
+        ],
+        "errors": [],
+        "events": [
+          {
+            "step": 0,
+            "event": "external_context_received",
+            "items": 1,
+            "trust": "untrusted"
+          },
+          {
+            "step": 0,
+            "event": "model_selected",
+            "model": "local-scripted",
+            "provider": "local"
+          },
+          {
+            "step": 1,
+            "event": "prompt_context_built",
+            "history_messages": 0,
+            "external_items": 1,
+            "observations": 0,
+            "history_omitted_messages": 0,
+            "truncated_history_messages": 0,
+            "truncated_external_items": 0
+          },
+          {
+            "step": 1,
+            "event": "decision_received",
+            "decision": {
+              "status": "call_tool",
+              "tool": "analyze_scope_drift",
+              "arguments": {
+                "project_id": "project-001",
+                "request_id": "request-001"
+              }
+            },
+            "synthetic": false
+          },
+          {
+            "step": 1,
+            "event": "decision_validated",
+            "status": "call_tool",
+            "tool": "analyze_scope_drift"
+          },
+          {
+            "step": 1,
+            "event": "tool_observation",
+            "tool": "analyze_scope_drift",
+            "ok": true,
+            "observation": {
+              "ok": true,
+              "projects": [
+                "project-001"
+              ],
+              "analysis": {
+                "analysis_id": "analysis-001",
+                "project_id": "project-001",
+                "classification": "scope_drift",
+                "request_text": "Please add checkout, card payments, and an inventory dashboard before launch.",
+                "findings": [
+                  {
+                    "category": "explicit_exclusion",
+                    "evidence": "checkout",
+                    "explanation": "The request matches work explicitly excluded from the agreement."
+                  },
+                  {
+                    "category": "explicit_exclusion",
+                    "evidence": "inventory",
+                    "explanation": "The request matches work explicitly excluded from the agreement."
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "step": 2,
+            "event": "prompt_context_built",
+            "history_messages": 0,
+            "external_items": 1,
+            "observations": 1,
+            "history_omitted_messages": 0,
+            "truncated_history_messages": 0,
+            "truncated_external_items": 0
+          },
+          {
+            "step": 2,
+            "event": "decision_received",
+            "decision": {
+              "status": "finish",
+              "reason": "tool_observation_satisfied_goal"
+            },
+            "synthetic": false
+          },
+          {
+            "step": 2,
+            "event": "decision_validated",
+            "status": "finish",
+            "tool": null
+          }
+        ],
+        "metrics": {
+          "latency_ms": 7.655599998543039,
+          "model_calls": 2,
+          "input_tokens": null,
+          "output_tokens": null,
+          "estimated_cost_usd": null
+        }
+      }
+    }
+  ],
+  "clarification": [
+    {
+      "task": "Analyze scope drift",
+      "response": {
+        "arena_version": "0.1",
+        "request_id": "a1dc0b97-8646-441d-880a-60354054c7dc",
+        "status": "needs_clarification",
+        "final_response": "Which project ID should I review?",
+        "steps": 1,
+        "stop_reason": "analysis_missing_project",
+        "tool_calls": [],
+        "errors": [],
+        "events": [
+          {
+            "step": 0,
+            "event": "model_selected",
+            "model": "local-scripted",
+            "provider": "local"
+          },
+          {
+            "step": 1,
+            "event": "prompt_context_built",
+            "history_messages": 0,
+            "external_items": 0,
+            "observations": 0,
+            "history_omitted_messages": 0,
+            "truncated_history_messages": 0,
+            "truncated_external_items": 0
+          },
+          {
+            "step": 1,
+            "event": "decision_received",
+            "decision": {
+              "status": "ask_clarification",
+              "reason": "analysis_missing_project",
+              "user_message": "Which project ID should I review?"
+            },
+            "synthetic": false
+          },
+          {
+            "step": 1,
+            "event": "decision_validated",
+            "status": "ask_clarification",
+            "tool": null
+          }
+        ],
+        "metrics": {
+          "latency_ms": 0.3180999992764555,
+          "model_calls": 1,
+          "input_tokens": null,
+          "output_tokens": null,
+          "estimated_cost_usd": null
+        }
+      }
+    },
+    {
+      "task": "project-001",
+      "response": {
+        "arena_version": "0.1",
+        "request_id": "72226ded-c710-4903-8d7e-81afa70e7e54",
+        "status": "needs_clarification",
+        "final_response": "What exactly did the client request? Provide request text or a request ID.",
+        "steps": 1,
+        "stop_reason": "analysis_missing_request",
+        "tool_calls": [],
+        "errors": [],
+        "events": [
+          {
+            "step": 0,
+            "event": "model_selected",
+            "model": "local-scripted",
+            "provider": "local"
+          },
+          {
+            "step": 1,
+            "event": "prompt_context_built",
+            "history_messages": 2,
+            "external_items": 0,
+            "observations": 0,
+            "history_omitted_messages": 0,
+            "truncated_history_messages": 0,
+            "truncated_external_items": 0
+          },
+          {
+            "step": 1,
+            "event": "decision_received",
+            "decision": {
+              "status": "ask_clarification",
+              "reason": "analysis_missing_request",
+              "user_message": "What exactly did the client request? Provide request text or a request ID."
+            },
+            "synthetic": false
+          },
+          {
+            "step": 1,
+            "event": "decision_validated",
+            "status": "ask_clarification",
+            "tool": null
+          }
+        ],
+        "metrics": {
+          "latency_ms": 0.21449999621836469,
+          "model_calls": 1,
+          "input_tokens": null,
+          "output_tokens": null,
+          "estimated_cost_usd": null
+        }
+      }
+    },
+    {
+      "task": "add checkout to scope",
+      "response": {
+        "arena_version": "0.1",
+        "request_id": "380cdaba-8c4d-41f9-9b4d-bb984875bbd9",
+        "status": "completed",
+        "final_response": "Scope result: scope_drift (high confidence). Evidence: explicit_exclusion: checkout. Next step: Review a written change request with the client before accepting the added work.",
+        "steps": 2,
+        "stop_reason": "tool_observation_satisfied_goal",
+        "tool_calls": [
+          {
+            "step": 1,
+            "tool": "analyze_scope_drift",
+            "attempt": 1,
+            "outcome": "success",
+            "latency_ms": 0.6743999983882532
+          }
+        ],
+        "errors": [],
+        "events": [
+          {
+            "step": 0,
+            "event": "model_selected",
+            "model": "local-scripted",
+            "provider": "local"
+          },
+          {
+            "step": 1,
+            "event": "prompt_context_built",
+            "history_messages": 4,
+            "external_items": 0,
+            "observations": 0,
+            "history_omitted_messages": 0,
+            "truncated_history_messages": 0,
+            "truncated_external_items": 0
+          },
+          {
+            "step": 1,
+            "event": "decision_received",
+            "decision": {
+              "status": "call_tool",
+              "tool": "analyze_scope_drift",
+              "arguments": {
+                "project_id": "project-001",
+                "request_text": "add checkout to scope"
+              }
+            },
+            "synthetic": false
+          },
+          {
+            "step": 1,
+            "event": "decision_validated",
+            "status": "call_tool",
+            "tool": "analyze_scope_drift"
+          },
+          {
+            "step": 1,
+            "event": "tool_observation",
+            "tool": "analyze_scope_drift",
+            "ok": true,
+            "observation": {
+              "ok": true,
+              "projects": [
+                "project-001"
+              ],
+              "analysis": {
+                "analysis_id": "analysis-001",
+                "project_id": "project-001",
+                "classification": "scope_drift",
+                "request_text": "add checkout to scope",
+                "findings": [
+                  {
+                    "category": "explicit_exclusion",
+                    "evidence": "checkout",
+                    "explanation": "The request matches work explicitly excluded from the agreement."
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "step": 2,
+            "event": "prompt_context_built",
+            "history_messages": 4,
+            "external_items": 0,
+            "observations": 1,
+            "history_omitted_messages": 0,
+            "truncated_history_messages": 0,
+            "truncated_external_items": 0
+          },
+          {
+            "step": 2,
+            "event": "decision_received",
+            "decision": {
+              "status": "finish",
+              "reason": "tool_observation_satisfied_goal"
+            },
+            "synthetic": false
+          },
+          {
+            "step": 2,
+            "event": "decision_validated",
+            "status": "finish",
+            "tool": null
+          }
+        ],
+        "metrics": {
+          "latency_ms": 1.1986000026809052,
+          "model_calls": 2,
+          "input_tokens": null,
+          "output_tokens": null,
+          "estimated_cost_usd": null
+        }
+      }
+    }
+  ]
+}
